@@ -1,0 +1,8 @@
+flask>=3.0
+pillow>=10.0
+python-mpd2>=3.1
+RPi.GPIO>=0.7
+# rgbmatrix (bindings Python de rpi-rgb-led-matrix) ne s'installe pas via pip :
+# compiler et installer depuis le fork RGB-Matrix-Px-xx (dossier example/Rasberry-Pi) :
+#   make build-python PYTHON=$(which python3)
+#   sudo make install-python PYTHON=$(which python3)

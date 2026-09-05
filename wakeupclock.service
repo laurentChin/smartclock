@@ -1,0 +1,15 @@
+[Unit]
+Description=WakeUpClock — Radio réveil connecté
+After=network.target mpd.service
+Wants=mpd.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Workspace/wakeupclock
+ExecStart=/home/pi/Workspace/wakeupclock/venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
