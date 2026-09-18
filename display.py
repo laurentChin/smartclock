@@ -1,5 +1,6 @@
 # display.py — pilotage écran RGB LED Matrix 64x32 (HUB75) via rpi-rgb-led-matrix
 
+import os
 import time
 import threading
 from config import (
@@ -8,32 +9,20 @@ from config import (
     RGB_MATRIX_BRIGHTNESS,
 )
 
+FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+
 try:
-    from rgbmatrix import RGBMatrix, RGBMatrixOptions
-    from PIL import ImageFont, Image, ImageDraw
+    from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
     MATRIX_AVAILABLE = True
 except ImportError:
     MATRIX_AVAILABLE = False
     print("[display] rgbmatrix non disponible — mode simulation")
 
 
-def _load_fonts():
-    paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-    ]
-    font_big = font_med = font_small = None
-    for p in paths:
-        try:
-            font_big   = ImageFont.truetype(p, 14)
-            font_med   = ImageFont.truetype(p, 10)
-            font_small = ImageFont.truetype(p, 8)
-            break
-        except Exception:
-            continue
-    if font_big is None:
-        font_big = font_med = font_small = ImageFont.load_default()
-    return font_big, font_med, font_small
+def _load_font(name):
+    font = graphics.Font()
+    font.LoadFont(os.path.join(FONTS_DIR, name))
+    return font
 
 
 class RGBMatrixDisplay:
@@ -42,7 +31,6 @@ class RGBMatrixDisplay:
         self.canvas = None
         self.width  = RGB_MATRIX_COLS
         self.height = RGB_MATRIX_ROWS
-        self.font_big, self.font_med, self.font_small = _load_fonts()
         self._lock = threading.Lock()
         self._thread = None
         self._running = False
@@ -50,6 +38,26 @@ class RGBMatrixDisplay:
         self._radio_station = ""
         self._alarm_label = ""
         self._next_alarm = ""
+
+        if MATRIX_AVAILABLE:
+            # Polices bitmap (BDF) — pas d'anti-crénelage, lisibles sur les LEDs
+            # espacées de ce panneau (contrairement aux polices TrueType lissées).
+            self.font_time  = _load_font("9x15B.bdf")   # heure — grand, gras
+            self.font_small = _load_font("clR6x12.bdf") # date / alarme / radio — police "Clean", peu arrondie
+
+            self.color_white  = graphics.Color(255, 255, 255)
+            self.color_cyan   = graphics.Color(0, 200, 255)
+            self.color_orange = graphics.Color(255, 150, 0)
+            self.color_green  = graphics.Color(0, 255, 0)
+            self.color_red    = graphics.Color(255, 0, 0)
+
+            # Carrés jour de la semaine : gris/blanc en semaine, orange le week-end,
+            # version vive pour le jour courant, version tamisée pour les autres.
+            self.DAY_DIM_WEEK    = (45, 45, 45)
+            self.DAY_BRIGHT_WEEK = (255, 255, 255)
+            self.DAY_DIM_WEEKEND    = (75, 32, 0)
+            self.DAY_BRIGHT_WEEKEND = (255, 140, 0)
+
         self._connect()
 
     def _connect(self):
@@ -126,40 +134,75 @@ class RGBMatrixDisplay:
                 print(f"[display] Erreur rendu : {e}")
             time.sleep(0.5)
 
-    def _render(self, draw_fn):
-        """Dessine une image PIL via draw_fn puis l'envoie au panneau (double buffer)."""
-        image = Image.new("RGB", (self.width, self.height), "black")
-        draw_fn(ImageDraw.Draw(image))
-        with self._lock:
-            self.canvas.SetImage(image)
-            self.canvas = self.matrix.SwapOnVSync(self.canvas)
+    def _text_width(self, font, text):
+        return sum(font.CharacterWidth(ord(c)) for c in text)
+
+    def _draw_day_squares(self, canvas, x0, y0, today_idx):
+        """7 carrés 2x2 espacés de 1px — lundi (0) à dimanche (6)."""
+        for i in range(7):
+            is_weekend = i >= 5
+            is_today = (i == today_idx)
+            if is_weekend:
+                color = self.DAY_BRIGHT_WEEKEND if is_today else self.DAY_DIM_WEEKEND
+            else:
+                color = self.DAY_BRIGHT_WEEK if is_today else self.DAY_DIM_WEEK
+            x = x0 + i * 3
+            for dx in range(2):
+                for dy in range(2):
+                    canvas.SetPixel(x + dx, y0 + dy, *color)
+
+    def _draw_time(self, canvas, hh, mm, x, baseline, color):
+        """HH puis MM, séparés par deux carrés 2x2 superposés (pas de glyphe ':')."""
+        w = self.font_time.CharacterWidth(ord("0"))
+        graphics.DrawText(canvas, self.font_time, x, baseline, color, hh)
+        colon_x = x + 2 * w + 1
+        for top in (baseline - 9, baseline - 3):
+            for dx in range(2):
+                for dy in range(2):
+                    canvas.SetPixel(colon_x + dx, top + dy, color.red, color.green, color.blue)
+        graphics.DrawText(canvas, self.font_time, colon_x + 4, baseline, color, mm)
+
+    def _draw_date(self, canvas, day, month, x, baseline, color):
+        """JJ | MM avec une barre verticale de 1px (le glyphe '/' gaspille des pixels)."""
+        w = self.font_small.CharacterWidth(ord("0"))
+        graphics.DrawText(canvas, self.font_small, x, baseline, color, day)
+        bar_x = x + 2 * w
+        graphics.DrawLine(canvas, bar_x, baseline - 8, bar_x, baseline - 1, color)
+        graphics.DrawText(canvas, self.font_small, bar_x + 2, baseline, color, month)
 
     def _draw_clock(self):
         now   = time.localtime()
-        heure = time.strftime("%H:%M", now)
-        date  = time.strftime("%a %d", now)
+        hh, mm = time.strftime("%H", now), time.strftime("%M", now)
+        day, month = time.strftime("%d", now), time.strftime("%m", now)
+        date = f"{day}/{month}"
+        heure = f"{hh}:{mm}"
 
         if self.matrix:
-            def draw_fn(draw):
-                draw.text((2, 0),  heure, font=self.font_big,   fill=(255, 255, 255))
-                draw.text((2, 20), date,  font=self.font_small, fill=(0, 200, 255))
-                if self._next_alarm:
-                    draw.text((self.width - 26, 20), self._next_alarm,
-                              font=self.font_small, fill=(255, 150, 0))
-            self._render(draw_fn)
+            self.canvas.Clear()
+            self._draw_time(self.canvas, hh, mm, 2, 14, self.color_white)
+            self._draw_day_squares(self.canvas, 22, 17, now.tm_wday)
+            self._draw_date(self.canvas, day, month, 1, 31, self.color_cyan)
+            if self._next_alarm:
+                w = self._text_width(self.font_small, self._next_alarm)
+                x = max(0, self.width - w - 1)
+                graphics.DrawText(self.canvas, self.font_small, x, 31, self.color_orange, self._next_alarm)
+            with self._lock:
+                self.canvas = self.matrix.SwapOnVSync(self.canvas)
         else:
             print(f"[display] CLOCK  {heure}  {date}  {self._next_alarm}")
 
     def _draw_radio(self):
         now     = time.localtime()
-        heure   = time.strftime("%H:%M", now)
-        station = self._radio_station[:12]
+        hh, mm  = time.strftime("%H", now), time.strftime("%M", now)
+        heure   = f"{hh}:{mm}"
+        station = self._radio_station[:10]
 
         if self.matrix:
-            def draw_fn(draw):
-                draw.text((0, 0),  f"▶ {heure}", font=self.font_med, fill=(0, 255, 0))
-                draw.text((0, 16), station,           font=self.font_med, fill=(255, 255, 255))
-            self._render(draw_fn)
+            self.canvas.Clear()
+            self._draw_time(self.canvas, hh, mm, 2, 15, self.color_green)
+            graphics.DrawText(self.canvas, self.font_small, 2, 31, self.color_white, station)
+            with self._lock:
+                self.canvas = self.matrix.SwapOnVSync(self.canvas)
         else:
             print(f"[display] RADIO  {heure}  {station}")
 
@@ -168,12 +211,17 @@ class RGBMatrixDisplay:
         tick = int(time.time() * 2) % 2  # clignote à 1Hz
 
         if self.matrix:
-            def draw_fn(draw):
-                if tick:
-                    draw.rectangle([(0, 0), (self.width - 1, self.height - 1)], outline=(255, 0, 0))
-                draw.text((4, 4),  "REVEIL",              font=self.font_med,   fill=(255, 0, 0))
-                draw.text((4, 20), self._alarm_label[:12], font=self.font_small, fill=(255, 255, 255))
-            self._render(draw_fn)
+            self.canvas.Clear()
+            if tick:
+                w, h = self.width - 1, self.height - 1
+                graphics.DrawLine(self.canvas, 0, 0, w, 0, self.color_red)
+                graphics.DrawLine(self.canvas, 0, h, w, h, self.color_red)
+                graphics.DrawLine(self.canvas, 0, 0, 0, h, self.color_red)
+                graphics.DrawLine(self.canvas, w, 0, w, h, self.color_red)
+            graphics.DrawText(self.canvas, self.font_small, 4, 14, self.color_red, "REVEIL")
+            graphics.DrawText(self.canvas, self.font_small, 4, 31, self.color_white, self._alarm_label[:10])
+            with self._lock:
+                self.canvas = self.matrix.SwapOnVSync(self.canvas)
         else:
             print(f"[display] *** ALARME *** {self._alarm_label}")
 
