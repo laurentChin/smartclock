@@ -8,7 +8,8 @@ RGB_MATRIX_PARALLEL         = 1
 RGB_MATRIX_HARDWARE_MAPPING = "adafruit-hat"  # panneau branché via la Bonnet Adafruit
 RGB_MATRIX_GPIO_SLOWDOWN    = 2
 RGB_MATRIX_RGB_SEQUENCE     = "RBG"      # canaux G/B inversés sur ce modèle de panneau
-RGB_MATRIX_BRIGHTNESS       = 60         # 0-100
+RGB_MATRIX_BRIGHTNESS       = 50         # 0-100 : luminosité du contenu actif (réglage global du panneau)
+RGB_MATRIX_BRIGHTNESS_SECONDARY = 25     # 0-100 : luminosité du contenu secondaire (obtenue en logiciel)
 
 # === GPIO (numérotation BCM) ===
 # Boutons/encodeur relogés hors des broches utilisées par le panneau RGB

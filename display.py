@@ -1,12 +1,17 @@
 # display.py — pilotage écran RGB LED Matrix 64x32 (HUB75) via rpi-rgb-led-matrix
+#
+# Mise en page issue de la maquette Figma "Smartclock | Pixel Digits" : 1 pixel Figma = 1 LED.
 
+import functools
 import os
 import time
 import threading
+
+import glyphs
 from config import (
     RGB_MATRIX_ROWS, RGB_MATRIX_COLS, RGB_MATRIX_CHAIN, RGB_MATRIX_PARALLEL,
     RGB_MATRIX_HARDWARE_MAPPING, RGB_MATRIX_GPIO_SLOWDOWN, RGB_MATRIX_RGB_SEQUENCE,
-    RGB_MATRIX_BRIGHTNESS,
+    RGB_MATRIX_BRIGHTNESS, RGB_MATRIX_BRIGHTNESS_SECONDARY,
 )
 
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
@@ -17,6 +22,71 @@ try:
 except ImportError:
     MATRIX_AVAILABLE = False
     print("[display] rgbmatrix non disponible — mode simulation")
+
+# --- Couleurs (RGB) ---
+WHITE       = (255, 255, 255)
+GRAY_50     = (128, 128, 128)           # séparateur de la date
+DAY_DIM     = (43, 43, 43)
+DAY_ACTIVE  = (217, 217, 217)
+WEEKEND_DIM = (51, 41, 0)
+WEEKEND_ACTIVE = (255, 204, 0)          # non dessiné dans la maquette : jaune plein
+ALARM_DIM   = (0, 27, 51)
+ALARM_ACTIVE = (0, 95, 178)
+LOGO_GRAY   = (142, 142, 147)
+LOGO_YELLOW = (255, 204, 0)
+
+# --- Positions (x, y) ---
+TIME_POS        = (4, 3)
+WEEK_POS        = (45, 1)
+DATE_POS        = (45, 3)
+ALARM_COUNT_POS = (45, 11)
+ALARM_TIME_POS  = (45, 13)
+LOGO_POS        = (4, 19)
+RADIO_TEXT_X    = 10
+RADIO_TEXT_WIDTH = 24                   # fenêtre du texte : 6 caractères, assez pour "France", "Europe", "Culture"
+RADIO_BASELINES = (24, 30)              # lettres de 5px sur les lignes 19-23 (comme le logo) et 25-29
+MAX_ALARM_DOTS  = 8
+LOGO_BAND_TOP   = 18                    # bande basse à gauche : logo + zone masquée pendant le défilement
+BLACK           = (0, 0, 0)
+
+# Défilement des textes radio trop longs (déclenché périodiquement, jamais en continu)
+SCROLL_PERIOD_S   = 10.0                # un défilement toutes les 10 s
+SCROLL_LEAD_S     = 2.0                 # le début du texte reste lisible avant de démarrer
+SCROLL_STEP_S     = 0.12                # 1 pixel tous les 0,12 s
+SCROLL_HOLD_S     = 1.5                 # pause sur la fin du texte
+SCROLL_MIN_IDLE_S = 3.0                 # immobilité minimale entre deux défilements
+SCROLL_FRAME_S    = 0.1                 # rafraîchissement pendant le défilement
+IDLE_FRAME_S      = 0.5
+
+# Logo par défaut : maquette (carré gris 5x5, deux points jaunes) ; à remplacer par un logo de station.
+DEFAULT_LOGO = [
+    [LOGO_GRAY] * 5,
+    [LOGO_GRAY, LOGO_GRAY, LOGO_YELLOW, LOGO_GRAY, LOGO_GRAY],
+    [LOGO_GRAY] * 5,
+    [LOGO_GRAY, LOGO_GRAY, LOGO_YELLOW, LOGO_GRAY, LOGO_GRAY],
+    [LOGO_GRAY] * 5,
+]
+
+
+def _to_luminance(value):
+    """Valeur 0-255 -> luminance relative, avec la courbe CIE1931 appliquée par la bibliothèque."""
+    lightness = value * 100 / 255
+    return lightness / 902.3 if lightness <= 8 else ((lightness + 16) / 116) ** 3
+
+
+def _from_luminance(y):
+    lightness = y * 902.3 if y <= 8 / 902.3 else 116 * y ** (1 / 3) - 16
+    return max(0, min(255, round(lightness * 255 / 100)))
+
+
+SECONDARY_FACTOR = min(1.0, RGB_MATRIX_BRIGHTNESS_SECONDARY / RGB_MATRIX_BRIGHTNESS)
+
+
+@functools.lru_cache(maxsize=None)
+def secondary(color):
+    """Couleur assombrie pour le contenu secondaire : luminance réelle multipliée par SECONDARY_FACTOR
+    (le panneau reste réglé sur la luminosité du contenu actif)."""
+    return tuple(_from_luminance(_to_luminance(v) * SECONDARY_FACTOR) for v in color)
 
 
 def _load_font(name):
@@ -35,28 +105,18 @@ class RGBMatrixDisplay:
         self._thread = None
         self._running = False
         self._mode = "clock"        # "clock" | "radio" | "alarm" | "off"
+        self._next_alarm = ""       # "HH:MM" de l'alarme la plus proche
+        self._alarm_count = 0       # nombre d'alarmes définies (un pixel chacune)
+        self._alarm_index = 0       # rang de l'alarme la plus proche
         self._radio_station = ""
+        self._radio_program = ""
+        self._radio_logo = None     # 5x5 de couleurs, None = logo par défaut
         self._alarm_label = ""
-        self._next_alarm = ""
+        self._scroll_t0 = time.monotonic()
 
         if MATRIX_AVAILABLE:
-            # Polices bitmap (BDF) — pas d'anti-crénelage, lisibles sur les LEDs
-            # espacées de ce panneau (contrairement aux polices TrueType lissées).
-            self.font_time  = _load_font("9x15B.bdf")   # heure — grand, gras
-            self.font_small = _load_font("clR6x12.bdf") # date / alarme / radio — police "Clean", peu arrondie
-
-            self.color_white  = graphics.Color(255, 255, 255)
-            self.color_cyan   = graphics.Color(0, 200, 255)
-            self.color_orange = graphics.Color(255, 150, 0)
-            self.color_green  = graphics.Color(0, 255, 0)
-            self.color_red    = graphics.Color(255, 0, 0)
-
-            # Carrés jour de la semaine : gris/blanc en semaine, orange le week-end,
-            # version vive pour le jour courant, version tamisée pour les autres.
-            self.DAY_DIM_WEEK    = (45, 45, 45)
-            self.DAY_BRIGHT_WEEK = (255, 255, 255)
-            self.DAY_DIM_WEEKEND    = (75, 32, 0)
-            self.DAY_BRIGHT_WEEKEND = (255, 140, 0)
+            self.font_text = _load_font("tiny5.bdf")    # texte radio : Tiny5, lettres 3x5
+            self.color_white = graphics.Color(*WHITE)
 
         self._connect()
 
@@ -99,17 +159,24 @@ class RGBMatrixDisplay:
         if self.matrix:
             self.matrix.Clear()
 
-    def set_mode_clock(self, next_alarm=""):
+    def set_mode_clock(self, next_alarm="", alarm_count=None, alarm_index=0):
+        """next_alarm : "HH:MM". Sans alarm_count, un seul pixel est affiché si une alarme existe."""
         self._mode = "clock"
         self._next_alarm = next_alarm
+        self._alarm_count = alarm_count if alarm_count is not None else (1 if next_alarm else 0)
+        self._alarm_index = alarm_index
 
-    def set_mode_radio(self, station_name):
+    def set_mode_radio(self, station_name, program="", logo=None):
         self._mode = "radio"
         self._radio_station = station_name
+        self._radio_program = program
+        self._radio_logo = logo
+        self._scroll_t0 = time.monotonic()
 
     def set_mode_alarm(self, label=""):
         self._mode = "alarm"
         self._alarm_label = label
+        self._scroll_t0 = time.monotonic()
 
     def set_mode_off(self):
         self._mode = "off"
@@ -121,109 +188,116 @@ class RGBMatrixDisplay:
 
     def _loop(self):
         while self._running:
+            scrolling = False
             try:
-                if self._mode == "clock":
-                    self._draw_clock()
-                elif self._mode == "radio":
-                    self._draw_radio()
-                elif self._mode == "alarm":
-                    self._draw_alarm()
-                elif self._mode == "off":
-                    pass
+                if self._mode in ("clock", "radio", "alarm"):
+                    scrolling = self._draw_screen()
             except Exception as e:
                 print(f"[display] Erreur rendu : {e}")
-            time.sleep(0.5)
+            time.sleep(SCROLL_FRAME_S if scrolling else IDLE_FRAME_S)
 
-    def _text_width(self, font, text):
-        return sum(font.CharacterWidth(ord(c)) for c in text)
+    def _text_width(self, text):
+        """Largeur d'encre en pixels (l'avance du dernier caractère contient 1px d'espacement)."""
+        return max(0, sum(self.font_text.CharacterWidth(ord(c)) for c in text) - 1)
 
-    def _draw_day_squares(self, canvas, x0, y0, today_idx):
-        """7 carrés 2x2 espacés de 1px — lundi (0) à dimanche (6)."""
+    def _fit(self, text, max_width):
+        while text and self._text_width(text) > max_width:
+            text = text[:-1]
+        return text
+
+    def _scroll_offsets(self, texts, room):
+        """Décalage en pixels de chaque ligne, et True pendant que le texte se déplace.
+
+        Cycle : le début reste lisible (LEAD), le texte défile jusqu'à sa fin, pause (HOLD),
+        puis retour au début et immobilité jusqu'au cycle suivant (toutes les PERIOD s,
+        avec au moins MIN_IDLE s d'arrêt pour les textes très longs)."""
+        overflow = [max(0, self._text_width(t) - room) for t in texts]
+        longest = max(overflow)
+        if not longest:
+            return [0] * len(texts), False
+        moving_time = longest * SCROLL_STEP_S
+        active = SCROLL_LEAD_S + moving_time + SCROLL_HOLD_S
+        cycle = max(SCROLL_PERIOD_S, active + SCROLL_MIN_IDLE_S)
+        t = (time.monotonic() - self._scroll_t0) % cycle
+        if t >= active:
+            return [0] * len(texts), False
+        steps = int(max(0.0, t - SCROLL_LEAD_S) / SCROLL_STEP_S)
+        moving = SCROLL_LEAD_S <= t < SCROLL_LEAD_S + moving_time
+        return [min(o, steps) for o in overflow], moving
+
+    # -- éléments de la maquette --
+
+    def _draw_week(self, put, put2, today):
+        """7 pixels, lundi (0) à dimanche (6) ; le jour courant est actif, les autres secondaires."""
         for i in range(7):
-            is_weekend = i >= 5
-            is_today = (i == today_idx)
-            if is_weekend:
-                color = self.DAY_BRIGHT_WEEKEND if is_today else self.DAY_DIM_WEEKEND
+            weekend = i >= 5
+            if i == today:
+                put(WEEK_POS[0] + 2 * i, WEEK_POS[1], WEEKEND_ACTIVE if weekend else DAY_ACTIVE)
             else:
-                color = self.DAY_BRIGHT_WEEK if is_today else self.DAY_DIM_WEEK
-            x = x0 + i * 3
-            for dx in range(2):
-                for dy in range(2):
-                    canvas.SetPixel(x + dx, y0 + dy, *color)
+                put2(WEEK_POS[0] + 2 * i, WEEK_POS[1], WEEKEND_DIM if weekend else DAY_DIM)
 
-    def _draw_time(self, canvas, hh, mm, x, baseline, color):
-        """HH puis MM, séparés par deux carrés 2x2 superposés (pas de glyphe ':')."""
-        w = self.font_time.CharacterWidth(ord("0"))
-        graphics.DrawText(canvas, self.font_time, x, baseline, color, hh)
-        colon_x = x + 2 * w + 1
-        for top in (baseline - 9, baseline - 3):
-            for dx in range(2):
-                for dy in range(2):
-                    canvas.SetPixel(colon_x + dx, top + dy, color.red, color.green, color.blue)
-        graphics.DrawText(canvas, self.font_time, colon_x + 4, baseline, color, mm)
+    def _draw_next_alarm(self, put, put2):
+        """Un pixel par alarme définie (la plus proche est active), puis son heure (secondaire)."""
+        digits = self._next_alarm.replace(":", "")
+        if not (self._alarm_count and len(digits) == 4 and digits.isdigit()):
+            return
+        for i in range(min(self._alarm_count, MAX_ALARM_DOTS)):
+            draw = put if i == self._alarm_index else put2
+            draw(ALARM_COUNT_POS[0] + 2 * i, ALARM_COUNT_POS[1],
+                 ALARM_ACTIVE if i == self._alarm_index else ALARM_DIM)
+        glyphs.draw_small(put2, ALARM_TIME_POS[0], ALARM_TIME_POS[1], digits[:2], digits[2:],
+                          ALARM_ACTIVE, sep="dots")
 
-    def _draw_date(self, canvas, day, month, x, baseline, color):
-        """JJ | MM avec une barre verticale de 1px (le glyphe '/' gaspille des pixels)."""
-        w = self.font_small.CharacterWidth(ord("0"))
-        graphics.DrawText(canvas, self.font_small, x, baseline, color, day)
-        bar_x = x + 2 * w
-        graphics.DrawLine(canvas, bar_x, baseline - 8, bar_x, baseline - 1, color)
-        graphics.DrawText(canvas, self.font_small, bar_x + 2, baseline, color, month)
+    def _draw_radio(self, canvas, put, station, program):
+        """Logo à gauche, deux lignes de texte à droite. Retourne True pendant un défilement."""
+        room = RADIO_TEXT_WIDTH
+        texts = (station, program)
+        offsets, moving = self._scroll_offsets(texts, room)
+        for baseline, text, offset in zip(RADIO_BASELINES, texts, offsets):
+            # À l'arrêt, seuls les caractères entiers qui tiennent sont affichés.
+            shown = text if offset else self._fit(text, room)
+            graphics.DrawText(canvas, self.font_text, RADIO_TEXT_X - offset, baseline,
+                              self.color_white, shown)
+        if any(offsets):
+            # Le texte qui défile déborde de sa fenêtre : on masque à gauche (sous le logo) et à droite.
+            for y in range(LOGO_BAND_TOP, self.height):
+                for x in list(range(RADIO_TEXT_X)) + list(range(RADIO_TEXT_X + RADIO_TEXT_WIDTH, self.width)):
+                    put(x, y, BLACK)
+        logo = self._radio_logo or DEFAULT_LOGO
+        for dy, row in enumerate(logo):
+            for dx, color in enumerate(row):
+                if color:
+                    put(LOGO_POS[0] + dx, LOGO_POS[1] + dy, color)
+        return moving
 
-    def _draw_clock(self):
-        now   = time.localtime()
+    def _draw_screen(self):
+        now = time.localtime()
         hh, mm = time.strftime("%H", now), time.strftime("%M", now)
         day, month = time.strftime("%d", now), time.strftime("%m", now)
-        date = f"{day}/{month}"
-        heure = f"{hh}:{mm}"
+        radio_visible = self._mode in ("radio", "alarm")
+        station = self._radio_station or self._alarm_label
+        program = self._radio_program
 
-        if self.matrix:
-            self.canvas.Clear()
-            self._draw_time(self.canvas, hh, mm, 2, 14, self.color_white)
-            self._draw_day_squares(self.canvas, 22, 17, now.tm_wday)
-            self._draw_date(self.canvas, day, month, 1, 31, self.color_cyan)
-            if self._next_alarm:
-                w = self._text_width(self.font_small, self._next_alarm)
-                x = max(0, self.width - w - 1)
-                graphics.DrawText(self.canvas, self.font_small, x, 31, self.color_orange, self._next_alarm)
-            with self._lock:
-                self.canvas = self.matrix.SwapOnVSync(self.canvas)
-        else:
-            print(f"[display] CLOCK  {heure}  {date}  {self._next_alarm}")
+        if not self.matrix:
+            print(f"[display] {self._mode.upper()}  {hh}:{mm}  {day}|{month}  alarme {self._next_alarm}"
+                  f"{'  ' + station + ' / ' + program if radio_visible else ''}")
+            return False
 
-    def _draw_radio(self):
-        now     = time.localtime()
-        hh, mm  = time.strftime("%H", now), time.strftime("%M", now)
-        heure   = f"{hh}:{mm}"
-        station = self._radio_station[:10]
+        canvas = self.canvas
+        canvas.Clear()
+        put = lambda x, y, c: canvas.SetPixel(x, y, c[0], c[1], c[2])
 
-        if self.matrix:
-            self.canvas.Clear()
-            self._draw_time(self.canvas, hh, mm, 2, 15, self.color_green)
-            graphics.DrawText(self.canvas, self.font_small, 2, 31, self.color_white, station)
-            with self._lock:
-                self.canvas = self.matrix.SwapOnVSync(self.canvas)
-        else:
-            print(f"[display] RADIO  {heure}  {station}")
+        put2 = lambda x, y, c: put(x, y, secondary(c))    # contenu secondaire
 
-    def _draw_alarm(self):
-        """Affichage clignotant pendant l'alarme."""
-        tick = int(time.time() * 2) % 2  # clignote à 1Hz
+        glyphs.draw_time(put, TIME_POS[0], TIME_POS[1], hh, mm, WHITE)
+        self._draw_week(put, put2, now.tm_wday)
+        glyphs.draw_small(put2, DATE_POS[0], DATE_POS[1], day, month, WHITE, sep="bar", sep_color=GRAY_50)
+        self._draw_next_alarm(put, put2)
+        scrolling = self._draw_radio(canvas, put, station, program) if radio_visible else False
 
-        if self.matrix:
-            self.canvas.Clear()
-            if tick:
-                w, h = self.width - 1, self.height - 1
-                graphics.DrawLine(self.canvas, 0, 0, w, 0, self.color_red)
-                graphics.DrawLine(self.canvas, 0, h, w, h, self.color_red)
-                graphics.DrawLine(self.canvas, 0, 0, 0, h, self.color_red)
-                graphics.DrawLine(self.canvas, w, 0, w, h, self.color_red)
-            graphics.DrawText(self.canvas, self.font_small, 4, 14, self.color_red, "REVEIL")
-            graphics.DrawText(self.canvas, self.font_small, 4, 31, self.color_white, self._alarm_label[:10])
-            with self._lock:
-                self.canvas = self.matrix.SwapOnVSync(self.canvas)
-        else:
-            print(f"[display] *** ALARME *** {self._alarm_label}")
+        with self._lock:
+            self.canvas = self.matrix.SwapOnVSync(canvas)
+        return scrolling
 
     def _clear(self):
         if self.matrix:
