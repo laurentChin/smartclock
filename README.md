@@ -293,7 +293,8 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
 
 - **Audio** : `radio.py` utilise `AudioLink` (validé sur banc avec FIP et France Info) ; léger
   grésillement intermittent restant (pistes : APLL de l'ESP32, gain de l'ampli). Alarme (déclenchement,
-  snooze, arrêt) validée sur banc. Non testés : RTL2/NRJ (format à vérifier, l'AAC n'est pas géré), titres ICY de Jazz Radio.
+  snooze, arrêt) validée sur banc. Flux MP3 uniquement (l'AAC n'est pas géré) ; les flux Radio France
+  n'envoient pas de titre ICY, il vient de `livemeta`.
 - **Boutons** : firmware, logique et lancement complet de `app.py` validés sur banc.
 - **Interface web** : alarmes, stations et système faits. Restent la radio (lecture, volume, station
   en cours) et l'alarme en cours (snooze / arrêt) dans la page, dont les routes API existent déjà.

@@ -159,7 +159,7 @@ static void handleFrame(uint8_t type, const uint8_t *payload, uint16_t len) {
       }
       break;
     case T_PING:
-      Serial.printf("PONG smartclock-audio 0.3 heap=%u overflow=%u bad=%u underrun=%u maxdec_us=%u\n",
+      Serial.printf("PONG smartclock-audio 0.4 heap=%u overflow=%u bad=%u underrun=%u maxdec_us=%u\n",
                     (unsigned)ESP.getFreeHeap(), overflowFrames, badFrames, underruns, maxDecodeUs);
       break;
   }
@@ -186,7 +186,14 @@ static void feedByte(uint8_t b) {
       break;
     case S_SUM:
       fState = S_MAGIC;
-      if (b == fSum) handleFrame(fType, fBuf, fLen); else badFrames++;
+      if (b == fSum) {
+        handleFrame(fType, fBuf, fLen);
+      } else {
+        badFrames++;
+        // Les octets d'une trame audio perdue comptent quand même comme reçus : sans cela le Pi
+        // les croit indéfiniment "en transit" et finit par ne plus rien envoyer.
+        if (fType == T_AUDIO && streaming) audioBytesReceived += fLen;
+      }
       break;
   }
 }
@@ -234,10 +241,10 @@ static void startDecoder() {
 }
 
 void setup() {
-  Serial.setRxBufferSize(8192);
+  Serial.setRxBufferSize(16384);
   Serial.begin(SERIAL_BAUD);
   Serial.println();
-  Serial.printf("BOOT smartclock-audio 0.3 baud=%u\n", (unsigned)SERIAL_BAUD);
+  Serial.printf("BOOT smartclock-audio 0.4 baud=%u\n", (unsigned)SERIAL_BAUD);
 
   for (auto &b : buttons) pinMode(b.pin, INPUT_PULLUP);
 

@@ -48,22 +48,4 @@ DEFAULT_STATIONS = [
         "genre":   "Info",
         "default": False,
     },
-    {
-        "name":    "RTL2",
-        "url":     "http://streaming.radio.rtl2.fr/rtl2-1-44-128",
-        "genre":   "Rock/Pop",
-        "default": False,
-    },
-    {
-        "name":    "NRJ",
-        "url":     "http://cdn.nrjaudio.fm/audio1/fr/30001/mp3_128.mp3",
-        "genre":   "Pop/Dance",
-        "default": False,
-    },
-    {
-        "name":    "Jazz Radio",
-        "url":     "http://jazz-wr02.ice.infomaniak.ch/jazz-wr02-128.mp3",
-        "genre":   "Jazz",
-        "default": False,
-    },
 ]

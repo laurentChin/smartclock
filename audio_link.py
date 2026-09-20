@@ -15,6 +15,7 @@ T_AUDIO, T_START, T_STOP, T_VOLUME, T_PING = 1, 2, 3, 4, 5
 
 CHUNK_BYTES = 512
 RESERVE_BYTES = 2048            # marge laissée libre dans le tampon de l'ESP32
+MAX_IN_FLIGHT = 8192            # octets envoyés non encore comptés reçus : reste sous le tampon série de l'ESP32 (16 Ko)
 RECONNECT_DELAY_S = 3.0
 USER_AGENT = "smartclock/0.1"
 
@@ -208,7 +209,8 @@ class AudioLink:
             with self._cv:
                 while not stop.is_set():
                     in_flight = self._sent - self._rx
-                    if self._free - in_flight - RESERVE_BYTES >= len(chunk):
+                    if (in_flight + len(chunk) <= MAX_IN_FLIGHT
+                            and self._free - in_flight - RESERVE_BYTES >= len(chunk)):
                         break
                     self._cv.wait(0.2)
                 if stop.is_set():
