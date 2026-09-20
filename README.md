@@ -366,11 +366,8 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
   snooze, arrêt) validée sur banc. Flux MP3 uniquement (l'AAC n'est pas géré) ; les flux Radio France
   n'envoient pas de titre ICY, il vient de `livemeta`.
 - **Boutons** : firmware, logique et lancement complet de `app.py` validés sur banc.
-- **Température** : affichage validé sur le panneau, et lecture Netatmo validée avec un faux serveur
-  (jeton qui tourne, pièces, mesures, erreurs). Pas encore essayée avec un vrai compte : la documentation
-  officielle de Netatmo n'étant pas consultable, les appels reposent sur la connaissance de l'API Energy ; le
-  premier essai réel peut demander un ajustement (portée du jeton, forme des réponses).
-- **Interface web** : alarmes, stations, température et système faits. Restent la radio (lecture, volume,
-  station en cours) et l'alarme en cours (snooze / arrêt) dans la page, dont les routes API existent déjà.
-  Le serveur est le serveur de développement de Flask, suffisant sur un réseau domestique.
-- **Figma** : la maquette n'a pas encore les logos 7 × 7 vérifiés ni la zone température.
+- **Température** : affichage sur le panneau et lecture Netatmo validés sur banc avec un vrai compte (API Energy :
+  `homesdata` / `homestatus`, jeton de renouvellement avec la portée `read_thermostat`).
+- **Interface web** : alarmes, stations, température et système faits. Le serveur est le serveur de
+  développement de Flask, suffisant sur un réseau domestique.
+- **Figma** : la maquette n'a pas encore la zone température ; les logos 7 × 7 y sont à vérifier.
