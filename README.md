@@ -150,6 +150,22 @@ adaptent, et le texte de la station se place juste à droite du logo. Si `LOGO_S
 enregistrés à l'ancienne taille sont remplacés au démarrage : les stations par défaut retrouvent leur
 logo, les autres reviennent au logo par défaut (`DEFAULT_LOGO`, un émetteur radio).
 
+**Température** (`/temperature`) : affiche sur le panneau la température d'une pièce lue sur le hub Netatmo
+(thermostat ou vannes connectées, API Energy `homesdata` / `homestatus`). La page permet de connecter le
+compte, de choisir la pièce et montre la mesure en cours, la pièce et l'heure de la dernière lecture.
+- **Connexion** : créer une application sur dev.netatmo.com (Mes applications), générer un jeton avec la
+  portée `read_thermostat` (« Token generator »), puis saisir dans la page l'identifiant et le secret de
+  l'application et le jeton de renouvellement. Le module `netatmo.py` les vérifie auprès de Netatmo avant de
+  les enregistrer dans `netatmo.json` (droits 600, ignoré par git) ; ils ne sont jamais renvoyés par l'API ni
+  écrits dans le code. Netatmo renvoie un nouveau jeton de renouvellement à chaque renouvellement du jeton
+  d'accès (environ 3 h) : le dernier est toujours réécrit dans le fichier.
+- **Lecture** : une mesure toutes les 5 minutes (`NETATMO_POLL_S`) ; au-delà de 30 minutes sans mesure
+  (`NETATMO_STALE_S`) le panneau affiche « -- ».
+- **Panneau** : zone de 9 × 5 pixels en (45, 24), avec les chiffres 3 × 5 de la date et de l'alarme (luminosité
+  secondaire), alignés à droite, et un pixel de degré suspendu sur la 9e colonne, en haut. Couleur d'après la
+  valeur arrondie : cyan sous 20 °, orange de 20 à 28 °, rouge au-delà. Zone vide tant que Netatmo n'est
+  pas configuré ; « -- » en gris si la mesure est absente ou trop ancienne.
+
 **Système** (`/system`) : redémarrer ou éteindre le Pi, après confirmation. La radio s'arrête
 et l'écran s'éteint avant l'action ; après un redémarrage, la page attend le retour du serveur.
 Un Pi éteint doit être débranché puis rebranché pour repartir.
@@ -169,6 +185,9 @@ API (JSON) :
 | `GET/POST /api/stations` | lister / créer une station (`name`, `url`, `genre`, `logo` facultatif) |
 | `PUT/DELETE /api/stations/<id>` | modifier (sans clé `logo`, il est conservé ; `"logo": null` l'efface) / supprimer (409 pour la station par défaut) |
 | `POST /api/stations/<id>/default` | définir la station par défaut |
+| `GET /api/netatmo`, `DELETE /api/netatmo` | état (jamais de secret) / déconnecter et supprimer les identifiants |
+| `PUT /api/netatmo/credentials` | connecter le compte (`client_id`, `client_secret`, `refresh_token`), vérifié avant enregistrement |
+| `GET /api/netatmo/rooms`, `PUT /api/netatmo/room` | pièces du compte / choisir la pièce affichée (`home_id`, `room_id`) |
 | `POST /api/system/reboot`, `/api/system/shutdown` | redémarrer / éteindre le Pi (corps JSON `{}`) |
 
 Une alarme demande une heure `HH:MM`, au moins un jour (`LU`…`DI`) et une station existante ;
@@ -253,8 +272,10 @@ wakeupclock/
 ├── display.py        ← pilotage panneau RGB LED matrix (rgbmatrix)
 ├── controls.py       ← actions des boutons (reçus de l'ESP32)
 ├── access.py         ← accès limité au réseau local
+├── netatmo.py        ← température d'une pièce lue sur le hub Netatmo
 ├── config.py         ← constantes et configuration GPIO/panneau
 ├── database.py       ← accès SQLite (alarmes, stations)
+├── netatmo.json      ← identifiants et pièce Netatmo (créé par la page Température, hors dépôt)
 ├── fonts/            ← polices bitmap BDF pour le panneau
 ├── tools/            ← outils (réduction d'un logo en grille de pixels, police du panneau)
 ├── wakeupclock.db    ← base SQLite (générée au premier lancement)
@@ -345,6 +366,11 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
   snooze, arrêt) validée sur banc. Flux MP3 uniquement (l'AAC n'est pas géré) ; les flux Radio France
   n'envoient pas de titre ICY, il vient de `livemeta`.
 - **Boutons** : firmware, logique et lancement complet de `app.py` validés sur banc.
-- **Interface web** : alarmes, stations et système faits. Restent la radio (lecture, volume, station
-  en cours) et l'alarme en cours (snooze / arrêt) dans la page, dont les routes API existent déjà.
+- **Température** : affichage validé sur le panneau, et lecture Netatmo validée avec un faux serveur
+  (jeton qui tourne, pièces, mesures, erreurs). Pas encore essayée avec un vrai compte : la documentation
+  officielle de Netatmo n'étant pas consultable, les appels reposent sur la connaissance de l'API Energy ; le
+  premier essai réel peut demander un ajustement (portée du jeton, forme des réponses).
+- **Interface web** : alarmes, stations, température et système faits. Restent la radio (lecture, volume,
+  station en cours) et l'alarme en cours (snooze / arrêt) dans la page, dont les routes API existent déjà.
   Le serveur est le serveur de développement de Flask, suffisant sur un réseau domestique.
+- **Figma** : la maquette n'a pas encore les logos 7 × 7 vérifiés ni la zone température.

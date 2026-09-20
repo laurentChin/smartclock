@@ -17,6 +17,7 @@ from display import display
 from alarm import AlarmDaemon, DAYS_FR
 from audio_link import USER_AGENT
 from controls import ControlsHandler
+from netatmo import netatmo, NetatmoError
 
 app = Flask(__name__)
 
@@ -39,6 +40,9 @@ radio.start()
 
 alarm_daemon = AlarmDaemon(radio, display)
 alarm_daemon.start()
+
+netatmo.on_update = display.set_temperature
+netatmo.start()
 
 controls = ControlsHandler(radio, alarm_daemon, display, db)
 controls.setup()
@@ -268,6 +272,63 @@ def api_snooze():
 def api_dismiss():
     alarm_daemon.dismiss()
     return jsonify({"status": "dismissed"})
+
+
+# --- Température (Netatmo) ---
+
+def _clean(value, limit=200):
+    return str(value).strip()[:limit] if isinstance(value, (str, int)) else ""
+
+
+@app.route("/temperature")
+def temperature_page():
+    return render_template("temperature.html", page="temperature")
+
+
+@app.route("/api/netatmo", methods=["GET"])
+def api_netatmo_status():
+    return jsonify(netatmo.status())
+
+
+@app.route("/api/netatmo/credentials", methods=["PUT"])
+def api_netatmo_credentials():
+    data = request.get_json(silent=True) or {}
+    client_id, secret, token = (_clean(data.get(k)) for k in ("client_id", "client_secret", "refresh_token"))
+    if not (client_id and secret and token):
+        return jsonify({"error": "Renseigne l'identifiant, le secret et le jeton de l'application Netatmo"}), 400
+    try:
+        netatmo.connect(client_id, secret, token)
+    except NetatmoError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(netatmo.status())
+
+
+@app.route("/api/netatmo/rooms", methods=["GET"])
+def api_netatmo_rooms():
+    if not netatmo.configured:
+        return jsonify({"error": "Connecte d'abord ton compte Netatmo"}), 409
+    try:
+        return jsonify(netatmo.rooms())
+    except NetatmoError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/netatmo/room", methods=["PUT"])
+def api_netatmo_room():
+    data = request.get_json(silent=True) or {}
+    if not netatmo.configured:
+        return jsonify({"error": "Connecte d'abord ton compte Netatmo"}), 409
+    try:
+        netatmo.select_room(_clean(data.get("home_id")), _clean(data.get("room_id")))
+    except NetatmoError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(netatmo.status())
+
+
+@app.route("/api/netatmo", methods=["DELETE"])
+def api_netatmo_disconnect():
+    netatmo.disconnect()
+    return jsonify({"status": "ok"})
 
 
 # --- Système ---

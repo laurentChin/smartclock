@@ -44,6 +44,14 @@ DEFAULT_LOGO = [
     [None, "#ffcc00", None, None, None, "#ffcc00", None],
 ]
 
+# === TEMPÉRATURE (NETATMO) ===
+# Accès aux données de la pièce choisie dans l'interface web. Les identifiants sont saisis dans la page
+# "Température" et enregistrés dans NETATMO_FILE (droits 600, hors dépôt) : ils ne sont jamais dans le code.
+NETATMO_API_URL   = "https://api.netatmo.com"
+NETATMO_FILE      = "netatmo.json"
+NETATMO_POLL_S    = 300      # une lecture toutes les 5 minutes (l'API limite le nombre de requêtes)
+NETATMO_STALE_S   = 1800     # au-delà de 30 minutes sans mesure, le panneau affiche "--"
+
 # === STATIONS PAR DÉFAUT ===
 # "logo" : grille LOGO_SIZE x LOGO_SIZE de couleurs "#rrggbb" (None = LED éteinte), affichée à gauche du nom.
 # Réduits depuis les icônes carrées des stations (radiofrance.fr, franceinfo.fr) avec tools/pixelate_logo.py.

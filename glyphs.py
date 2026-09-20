@@ -29,6 +29,8 @@ SMALL = {  # date et alarme : 5 lignes, largeur 3 (le 1 fait 1)
     "9": ["###", "#.#", "###", "..#", "###"],
 }
 
+DASH = ["...", "...", "###", "...", "..."]   # signe moins et tiret d'une mesure absente (3x5)
+
 # Cases de l'heure, relatives à x0 : H1, H2, M1, M2 (5px de large, 1px d'écart) ; deux points en x0+13.
 TIME_CELLS = (0, 6, 16, 22)
 TIME_COLON_X = 13
@@ -68,3 +70,21 @@ def draw_small(put, x, y, left, right, color, sep="bar", sep_color=None):
     for d in right:
         blit(put, x, y, SMALL[d], color)
         x += len(SMALL[d][0]) + 1
+
+
+# Température : zone de 9x5 ; les chiffres 3x5 (1 pixel d'écart, comme la date) sont alignés à droite sur
+# les colonnes 1 à 7 et le pixel de degré est suspendu sur la 9e colonne, en haut.
+TEMP_DIGITS_END = 7          # les chiffres se terminent avant cette colonne (relative à x0)
+TEMP_DEGREE = (8, 0)
+
+
+def draw_temperature(put, x0, y0, tens, units, color, degree=True):
+    """tens : "" (rien), "-" ou un chiffre ; units : un chiffre ou "-"."""
+    glyphs = [DASH if char == "-" else SMALL[char] for char in (tens, units) if char]
+    width = sum(len(rows[0]) for rows in glyphs) + len(glyphs) - 1
+    x = x0 + TEMP_DIGITS_END - width
+    for rows in glyphs:
+        blit(put, x, y0, rows, color)
+        x += len(rows[0]) + 1
+    if degree:
+        put(x0 + TEMP_DEGREE[0], y0 + TEMP_DEGREE[1], color)

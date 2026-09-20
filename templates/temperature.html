@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Température · Réveil{% endblock %}
+
+{% block content %}
+    <section aria-labelledby="temp-title">
+      <div class="section-head">
+        <h2 id="temp-title">Température</h2>
+      </div>
+
+      <div class="card temp-card">
+        <div>
+          <div id="temp-value" class="temp-value" aria-live="polite">--</div>
+          <div id="temp-room" class="meta">Netatmo n'est pas configuré</div>
+          <div id="temp-updated" class="meta"></div>
+        </div>
+      </div>
+      <p id="temp-error" class="error" role="alert" hidden></p>
+
+      <form id="room-form" class="panel" hidden>
+        <h3>Pièce affichée</h3>
+        <label class="field">
+          <span>Pièce</span>
+          <select id="room-select"></select>
+        </label>
+        <div class="actions">
+          <span class="spacer"></span>
+          <button type="submit" id="room-save" class="btn primary">Choisir cette pièce</button>
+        </div>
+        <p class="hint">La température s'affiche sur le panneau, à droite, sous l'alarme, et se met à jour toutes les 5 minutes.</p>
+      </form>
+
+      <form id="connect-form" class="panel" novalidate>
+        <h3 id="connect-title">Connexion à Netatmo</h3>
+        <p class="hint">
+          Crée une application sur <strong>dev.netatmo.com</strong> (Mes applications), puis génère un jeton avec
+          la portée <strong>read_thermostat</strong> depuis « Token generator ». Colle ci-dessous l'identifiant,
+          le secret et le jeton de renouvellement. Ils restent sur le Pi et ne sont jamais réaffichés.
+        </p>
+        <label class="field">
+          <span>Identifiant de l'application (client id)</span>
+          <input type="text" id="n-client-id" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Secret de l'application (client secret)</span>
+          <input type="password" id="n-client-secret" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Jeton de renouvellement (refresh token)</span>
+          <input type="password" id="n-refresh-token" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </label>
+        <p id="connect-error" class="error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="button" id="disconnect" class="btn danger" hidden>Déconnecter</button>
+          <span class="spacer"></span>
+          <button type="submit" id="connect-save" class="btn primary">Se connecter</button>
+        </div>
+      </form>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/temperature.js') }}"></script>
+{% endblock %}

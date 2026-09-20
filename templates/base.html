@@ -13,6 +13,7 @@
     <nav class="tabs" aria-label="Pages">
       <a href="{{ url_for('index') }}" {% if page == 'alarms' %}aria-current="page"{% endif %}>Alarmes</a>
       <a href="{{ url_for('stations_page') }}" {% if page == 'stations' %}aria-current="page"{% endif %}>Stations</a>
+      <a href="{{ url_for('temperature_page') }}" {% if page == 'temperature' %}aria-current="page"{% endif %}>Température</a>
       <a href="{{ url_for('system_page') }}" {% if page == 'system' %}aria-current="page"{% endif %}>Système</a>
     </nav>
   </header>

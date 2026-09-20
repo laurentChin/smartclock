@@ -32,6 +32,9 @@ WEEKEND_DIM = (51, 41, 0)
 WEEKEND_ACTIVE = (255, 204, 0)          # non dessiné dans la maquette : jaune plein
 ALARM_DIM   = (0, 27, 51)
 ALARM_ACTIVE = (0, 95, 178)
+TEMP_COLD   = (0, 200, 255)             # moins de 20 °
+TEMP_WARM   = (255, 149, 0)             # de 20 à 28 °
+TEMP_HOT    = (255, 59, 48)             # plus de 28 °
 VOLUME_LIT  = (52, 199, 89)
 VOLUME_OFF  = (10, 40, 18)
 
@@ -41,6 +44,7 @@ WEEK_POS        = (45, 1)
 DATE_POS        = (45, 3)
 ALARM_COUNT_POS = (45, 11)
 ALARM_TIME_POS  = (45, 13)
+TEMP_POS        = (45, 24)              # zone 9x5 : deux chiffres 3x5 et un pixel de degré
 LOGO_POS        = (4, 19)
 VOLUME_POS      = (2, 19)               # colonne de 10 pixels, le bas de la colonne = volume minimal
 VOLUME_PIXELS   = 10
@@ -125,6 +129,7 @@ class RGBMatrixDisplay:
         self._radio_program = ""
         self._radio_logo = None     # grille de couleurs, None = logo par défaut
         self._alarm_label = ""
+        self._temperature = None    # None : zone vide ; nombre : température en °C ; "--" : mesure absente
         self._volume_level = 0      # pixels allumés de l'indicateur de volume
         self._volume_until = 0.0    # instant (monotonic) où l'indicateur disparaît
         self._scroll_t0 = time.monotonic()
@@ -189,6 +194,11 @@ class RGBMatrixDisplay:
         self._next_alarm = next_alarm
         self._alarm_count = alarm_count if alarm_count is not None else (1 if next_alarm else 0)
         self._alarm_index = alarm_index
+
+    def set_temperature(self, celsius):
+        """Température de la pièce choisie (en °C). None : zone vide (Netatmo non configuré) ;
+        "--" : configuré mais mesure absente ou trop ancienne."""
+        self._temperature = celsius
 
     def set_mode_clock(self, next_alarm=None, alarm_count=None, alarm_index=0):
         """Sans next_alarm, les alarmes déjà mémorisées sont conservées."""
@@ -309,6 +319,27 @@ class RGBMatrixDisplay:
             else:
                 put2(VOLUME_POS[0], y, VOLUME_OFF)
 
+    def _draw_temperature(self, put2):
+        """Zone 9x5 : la température arrondie sur deux chiffres 3x5 et un pixel de degré en haut à droite.
+        Cyan sous 20 °, orange de 20 à 28 °, rouge au-delà (d'après la valeur arrondie affichée)."""
+        value = self._temperature
+        if value is None:
+            return
+        x, y = TEMP_POS
+        if value == "--":
+            glyphs.draw_temperature(put2, x, y, "-", "-", GRAY_50, degree=False)
+            return
+        shown = int(value + 0.5) if value >= 0 else -int(-value + 0.5)     # arrondi au plus proche
+        if not -9 <= shown <= 99:
+            glyphs.draw_temperature(put2, x, y, "-", "-", GRAY_50, degree=False)
+            return
+        color = TEMP_COLD if shown < 20 else TEMP_WARM if shown <= 28 else TEMP_HOT
+        if shown < 0:
+            tens, units = "-", str(-shown)
+        else:
+            tens, units = ("" if shown < 10 else str(shown // 10)), str(shown % 10)
+        glyphs.draw_temperature(put2, x, y, tens, units, color)
+
     def _draw_screen(self):
         now = time.localtime()
         hh, mm = time.strftime("%H", now), time.strftime("%M", now)
@@ -332,6 +363,7 @@ class RGBMatrixDisplay:
         self._draw_week(put, put2, now.tm_wday)
         glyphs.draw_small(put2, DATE_POS[0], DATE_POS[1], day, month, WHITE, sep="bar", sep_color=GRAY_50)
         self._draw_next_alarm(put, put2)
+        self._draw_temperature(put2)
         scrolling = self._draw_radio(canvas, put, station, program) if radio_visible else False
         if time.monotonic() < self._volume_until:
             self._draw_volume(put, put2)
