@@ -29,23 +29,46 @@ FLASK_PORT       = 5000
 FLASK_DEBUG      = False
 
 # === STATIONS PAR DÉFAUT ===
+# "logo" : grille 5x5 de couleurs "#rrggbb" (None = LED éteinte), affichée à gauche du nom de la station.
+# Réduits en 5x5 depuis les icônes carrées des stations (radiofrance.fr, franceinfo.fr) avec tools/pixelate_logo.py.
 DEFAULT_STATIONS = [
     {
         "name":    "FIP",
         "url":     "https://icecast.radiofrance.fr/fip-midfi.mp3",
         "genre":   "Éclectique",
         "default": True,
+        "logo":    [
+            ["#e2007a", "#e2007a", "#ffffff", "#ffffff", "#e2007a"],
+            ["#e2007a", "#e2007a", "#ffffff", "#ffffff", "#e2007a"],
+            ["#ffffff", "#e2007a", "#e2007a", "#ffffff", "#ffffff"],
+            ["#ffffff", "#ffffff", "#e2007a", "#e2007a", "#e2007a"],
+            ["#e2007a", "#ffffff", "#ffffff", "#e2007a", "#e2007a"],
+        ],
     },
     {
         "name":    "France Inter",
         "url":     "https://icecast.radiofrance.fr/franceinter-midfi.mp3",
         "genre":   "Généraliste",
         "default": False,
+        "logo":    [
+            ["#e20134", "#e20134", "#ffffff", "#ffffff", "#e20134"],
+            ["#e20134", "#e20134", "#ffffff", "#ffffff", "#e20134"],
+            ["#ffffff", "#e20134", "#e20134", "#ffffff", "#ffffff"],
+            ["#ffffff", "#ffffff", "#e20134", "#e20134", "#e20134"],
+            ["#e20134", "#ffffff", "#ffffff", "#e20134", "#e20134"],
+        ],
     },
     {
         "name":    "France Info",
         "url":     "https://icecast.radiofrance.fr/franceinfo-midfi.mp3",
         "genre":   "Info",
         "default": False,
+        "logo":    [
+            ["#666666", "#666666", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#ffc300", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#ffc300", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#666666", "#666666"],
+        ],
     },
 ]

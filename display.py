@@ -94,6 +94,24 @@ def secondary(color):
     return tuple(_from_luminance(_to_luminance(v) * SECONDARY_FACTOR) for v in color)
 
 
+def _parse_logo(logo):
+    """Grille 5x5 de "#rrggbb" / (r, g, b) / None -> grille de tuples ; None si absente ou invalide."""
+    if not logo or len(logo) != 5 or any(len(row) != 5 for row in logo):
+        return None
+    grid = []
+    for row in logo:
+        cells = []
+        for cell in row:
+            if isinstance(cell, str) and len(cell) == 7 and cell.startswith("#"):
+                try:
+                    cell = tuple(int(cell[i:i + 2], 16) for i in (1, 3, 5))
+                except ValueError:
+                    return None
+            cells.append(tuple(cell) if cell else None)
+        grid.append(cells)
+    return grid
+
+
 def _load_font(name):
     font = graphics.Font()
     font.LoadFont(os.path.join(FONTS_DIR, name))
@@ -115,7 +133,7 @@ class RGBMatrixDisplay:
         self._alarm_index = 0       # rang de l'alarme la plus proche
         self._radio_station = ""
         self._radio_program = ""
-        self._radio_logo = None     # 5x5 de couleurs, None = logo par défaut
+        self._radio_logo = None     # grille 5x5 de couleurs, None = logo par défaut
         self._alarm_label = ""
         self._volume_level = 0      # pixels allumés de l'indicateur de volume
         self._volume_until = 0.0    # instant (monotonic) où l'indicateur disparaît
@@ -192,7 +210,7 @@ class RGBMatrixDisplay:
         self._mode = "radio"
         self._radio_station = station_name
         self._radio_program = program
-        self._radio_logo = logo
+        self._radio_logo = _parse_logo(logo)
         self._scroll_t0 = time.monotonic()
 
     def set_mode_alarm(self, label=""):

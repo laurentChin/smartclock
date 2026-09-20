@@ -1,6 +1,7 @@
 # app.py — serveur Flask + point d'entrée principal
 
 from flask import Flask, render_template, request, jsonify
+import re
 import subprocess
 import threading
 import time
@@ -32,7 +33,7 @@ def only_local_network():
 # === Initialisation ===
 db.init_db()
 display.start()
-radio.on_title = lambda station, title: display.mode == "radio" and display.set_mode_radio(station, title)
+radio.on_title = lambda station, title: display.mode == "radio" and display.set_mode_radio(station, title, radio.current_logo)
 radio.on_volume = display.show_volume
 radio.start()
 
@@ -72,8 +73,8 @@ def api_radio_play():
     station    = stations.get(station_id) or db.get_default_station()
     if not station:
         return jsonify({"error": "Aucune station disponible"}), 400
-    radio.play(station["url"], station["name"])
-    display.set_mode_radio(station["name"], radio.current_title)
+    radio.play(station["url"], station["name"], logo=station["logo"])
+    display.set_mode_radio(station["name"], radio.current_title, radio.current_logo)
     return jsonify({"status": "playing", "station": station["name"]})
 
 
@@ -173,8 +174,17 @@ def _check_stream(url):
     return None
 
 
-def _station_from_request():
-    """Lit et valide le corps JSON d'une station. Retourne (valeurs, None) ou (None, message d'erreur)."""
+def _logo_valid(logo):
+    return (isinstance(logo, list) and len(logo) == 5
+            and all(isinstance(row, list) and len(row) == 5
+                    and all(cell is None or (isinstance(cell, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", cell))
+                            for cell in row)
+                    for row in logo))
+
+
+def _station_from_request(current_logo=None):
+    """Lit et valide le corps JSON d'une station. Retourne (valeurs, None) ou (None, message d'erreur).
+    Sans clé "logo", le logo actuel est conservé ; "logo": null l'efface."""
     data = request.get_json(silent=True) or {}
     name = str(data.get("name", "")).strip()
     url = str(data.get("url", "")).strip()
@@ -183,7 +193,11 @@ def _station_from_request():
         return None, "Donne un nom à la station"
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         return None, "Adresse invalide (http:// ou https://)"
-    return {"name": name[:40], "url": url, "genre": str(data.get("genre", "")).strip()[:30]}, None
+    logo = data.get("logo", current_logo)
+    if logo is not None and not _logo_valid(logo):
+        return None, "Logo invalide (grille 5x5 de couleurs #rrggbb)"
+    return {"name": name[:40], "url": url, "genre": str(data.get("genre", "")).strip()[:30],
+            "logo": logo}, None
 
 
 @app.route("/stations")
@@ -212,7 +226,7 @@ def api_update_station(station_id):
     current = db.get_station(station_id)
     if not current:
         return jsonify({"error": "Station introuvable"}), 404
-    values, error = _station_from_request()
+    values, error = _station_from_request(current["logo"])
     if values and values["url"] != current["url"]:      # le flux n'est revérifié que si l'adresse change
         error = _check_stream(values["url"])
     if error:

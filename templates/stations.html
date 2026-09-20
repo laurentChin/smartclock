@@ -33,6 +33,49 @@
         <input type="text" id="s-genre" maxlength="30" autocomplete="off">
       </label>
 
+      <fieldset class="field logo-field">
+        <legend>Logo sur le panneau (5 × 5)</legend>
+
+        <div id="logo-grid" class="logo-grid" role="group" aria-label="Logo, grille de 5 par 5 pixels"></div>
+
+        <div class="logo-tools">
+          <label class="color-pick">
+            <input type="color" id="logo-color" value="#ffffff" aria-label="Couleur du pinceau">
+            <span>Couleur</span>
+          </label>
+          <button type="button" class="tool" id="logo-erase" aria-pressed="false">Gomme</button>
+          <button type="button" class="tool" id="logo-clear">Tout effacer</button>
+          <button type="button" class="tool" id="logo-reset">Annuler</button>
+        </div>
+        <div id="logo-swatches" class="swatches" aria-label="Couleurs du logo"></div>
+
+        <div class="logo-import">
+          <label class="tool file">
+            Réduire une image…
+            <input type="file" id="logo-file" accept="image/*" hidden>
+          </label>
+          <div id="logo-options" hidden>
+            <label class="opt">Cadrage
+              <select id="logo-fit">
+                <option value="contain">Image entière</option>
+                <option value="cover">Recadrée au centre</option>
+              </select>
+            </label>
+            <label class="opt">Zoom sur le centre
+              <input type="range" id="logo-zoom" min="0" max="30" value="0">
+            </label>
+            <label class="opt">Détail du motif
+              <input type="range" id="logo-detail" min="10" max="60" value="30">
+            </label>
+            <label class="check small">
+              <input type="checkbox" id="logo-light" checked>
+              <span>Éclaircir les couleurs sombres</span>
+            </label>
+          </div>
+        </div>
+        <p class="hint">Touche ou glisse sur la grille pour colorier. Sans logo, celui par défaut est affiché.</p>
+      </fieldset>
+
       <label class="check">
         <input type="checkbox" id="s-default">
         <span>Station par défaut</span>

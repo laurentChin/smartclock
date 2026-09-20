@@ -129,6 +129,22 @@ lu par l'ESP32) et refuse une page web ou un flux injoignable. La station par d�
 être supprimée (en choisir une autre d'abord) ; à la suppression d'une station, ses alarmes
 passent sur la station par défaut.
 
+**Logo des stations** : chaque station a un logo de 5 × 5 pixels affiché à gauche de son nom sur le
+panneau (à la radio, pendant une alarme et via le bouton), et un logo par défaut si elle n'en a pas.
+Dans le formulaire d'une station, un petit éditeur permet de :
+- colorier la grille (touche ou glisse ; couleur au choix, pastilles des couleurs déjà utilisées,
+  gomme, « Tout effacer », « Annuler ») ;
+- **réduire une image** (PNG, JPEG, SVG) : le navigateur la ramène en 5 × 5 en gardant des couleurs
+  franches (couleur de fond, sauf si un motif couvre assez la case). Réglages : cadrage (image entière
+  ou recadrée), zoom sur le centre (utile pour les icônes entourées de marge), détail du motif et
+  éclaircissement des couleurs sombres. Le résultat reste retouchable pixel par pixel.
+
+Les logos par défaut de FIP, France Inter et France Info viennent des icônes carrées des stations
+(`radiofrance.fr/external/favicons/<station>/favicon.png`, `franceinfo.fr/icon.svg`). Le même travail se
+fait en ligne de commande avec `tools/pixelate_logo.py` (options `--fit`, `--margin`, `--threshold`,
+`--lighten`, `--preview`). Le logo est stocké avec la station (colonne `logo`, JSON de 5 lignes de 5
+couleurs `#rrggbb`, `null` = LED éteinte) et se règle aussi par l'API.
+
 **Système** (`/system`) : redémarrer ou éteindre le Pi, après confirmation. La radio s'arrête
 et l'écran s'éteint avant l'action ; après un redémarrage, la page attend le retour du serveur.
 Un Pi éteint doit être débranché puis rebranché pour repartir.
@@ -145,8 +161,8 @@ API (JSON) :
 | `POST /api/alarms/<id>/toggle` | activer ou désactiver (`{"enabled": true}`) |
 | `POST /api/alarm/snooze`, `/api/alarm/dismiss` | snooze / arrêt de l'alarme en cours |
 | `POST /api/radio/play`, `/stop`, `/volume` | radio (`{"station_id": 1}`, `{"volume": 40}`) |
-| `GET/POST /api/stations` | lister / créer une station (`name`, `url`, `genre`) |
-| `PUT/DELETE /api/stations/<id>` | modifier / supprimer (409 pour la station par défaut) |
+| `GET/POST /api/stations` | lister / créer une station (`name`, `url`, `genre`, `logo` facultatif) |
+| `PUT/DELETE /api/stations/<id>` | modifier (sans clé `logo`, il est conservé ; `"logo": null` l'efface) / supprimer (409 pour la station par défaut) |
 | `POST /api/stations/<id>/default` | définir la station par défaut |
 | `POST /api/system/reboot`, `/api/system/shutdown` | redémarrer / éteindre le Pi (corps JSON `{}`) |
 
@@ -235,6 +251,7 @@ wakeupclock/
 ├── config.py         ← constantes et configuration GPIO/panneau
 ├── database.py       ← accès SQLite (alarmes, stations)
 ├── fonts/            ← polices bitmap BDF pour le panneau
+├── tools/            ← outils (réduction d'un logo en 5x5, police du panneau)
 ├── wakeupclock.db    ← base SQLite (générée au premier lancement)
 ├── requirements.txt  ← dépendances Python
 ├── wakeupclock.service ← unit systemd

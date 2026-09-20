@@ -143,6 +143,43 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; }
 .check { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; }
 .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 
+/* --- logo des stations --- */
+.alarm .station-edit { display: flex; align-items: center; gap: 14px; }
+.logo-thumb {
+  display: grid; grid-template-columns: repeat(5, 7px); gap: 1px; padding: 3px; background: #000;
+  border-radius: 4px; flex-shrink: 0;
+}
+.logo-thumb i { width: 7px; height: 7px; display: block; }
+
+.logo-grid {
+  display: grid; grid-template-columns: repeat(5, 40px); gap: 3px; padding: 6px; width: max-content;
+  background: #000; border-radius: 10px; touch-action: none; user-select: none; margin: 0 auto;
+}
+.logo-cell {
+  width: 40px; height: 40px; padding: 0; border: 1px solid #262626; border-radius: 4px;
+  background: #000; cursor: pointer;
+}
+.logo-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.logo-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.tool {
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 8px 12px; border-radius: 10px;
+  font: inherit; font-size: .9rem; cursor: pointer;
+}
+.tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.tool.file { display: inline-block; }
+.color-pick { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); }
+.color-pick input { width: 40px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.swatch { width: 28px; height: 28px; padding: 0; border-radius: 6px; border: 2px solid var(--line); cursor: pointer; }
+.swatch[aria-pressed="true"] { border-color: var(--accent); }
+.logo-import { margin-top: 12px; }
+#logo-options { margin-top: 10px; display: grid; gap: 10px; }
+#logo-options[hidden] { display: none; }
+.opt { display: grid; gap: 4px; font-size: .9rem; color: var(--muted); }
+.opt select, .opt input[type=range] { width: 100%; min-width: 0; }
+.opt select { padding: 8px 10px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.check.small { margin: 0; font-size: .9rem; }
+
 /* --- système --- */
 .cards { display: grid; gap: 10px; }
 .card {

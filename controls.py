@@ -50,7 +50,7 @@ class ControlsHandler:
             print("[controls] BTN : radio 1 h")
             station = self.database.get_default_station()
             if station:
-                self.radio.play(station["url"], station["name"])
-                self.display.set_mode_radio(station["name"], self.radio.current_title)
+                self.radio.play(station["url"], station["name"], logo=station["logo"])
+                self.display.set_mode_radio(station["name"], self.radio.current_title, self.radio.current_logo)
             else:
                 print("[controls] Aucune station par défaut configurée")

@@ -131,13 +131,14 @@ class AlarmDaemon:
             self.radio.play(
                 station["url"],
                 station_name=station["name"],
-                duration=RADIO_DURATION
+                duration=RADIO_DURATION,
+                logo=station.get("logo")
             )
             # Repasser en mode radio sur l'écran après 5s d'affichage alarme
             def switch_to_radio():
                 time.sleep(5)
                 if self.radio.is_playing:
-                    self.display.set_mode_radio(station["name"], self.radio.current_title)
+                    self.display.set_mode_radio(station["name"], self.radio.current_title, self.radio.current_logo)
             threading.Thread(target=switch_to_radio, daemon=True).start()
         else:
             print("[alarm] Aucune station disponible")

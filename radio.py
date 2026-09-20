@@ -16,6 +16,7 @@ class Radio:
         self._meta = None
         self._current_station = None
         self._current_title = ""
+        self._current_logo = None
         self._volume = DEFAULT_VOLUME
         # on_title(nom_station, titre) : appelé à chaque changement de titre (à brancher sur l'affichage)
         self.on_title = None
@@ -58,11 +59,12 @@ class Radio:
 
     # ------------------------------------------------------------------ #
 
-    def play(self, station_url, station_name="", duration=RADIO_DURATION):
-        """Joue un flux radio pendant `duration` secondes."""
+    def play(self, station_url, station_name="", duration=RADIO_DURATION, logo=None):
+        """Joue un flux radio pendant `duration` secondes. `logo` : grille 5x5 de la station (ou None)."""
         with self._lock:
             self.stop()
             self._current_station = station_name
+            self._current_logo = logo
             print(f"[radio] Lecture : {station_name} ({station_url})")
 
             if self._ensure_link():
@@ -96,6 +98,7 @@ class Radio:
             self._playing = False
             self._current_station = None
             self._current_title = ""
+            self._current_logo = None
         print("[radio] Arrêt")
 
     def set_volume(self, vol):
@@ -126,6 +129,10 @@ class Radio:
     @property
     def current_title(self):
         return self._current_title
+
+    @property
+    def current_logo(self):
+        return self._current_logo
 
     @property
     def volume(self):

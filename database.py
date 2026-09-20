@@ -37,13 +37,18 @@ def init_db():
         )
     """)
 
+    # Logo 5x5 de la station (JSON) : colonne ajoutée après coup, donc migration des bases existantes
+    columns = [row["name"] for row in c.execute("PRAGMA table_info(stations)")]
+    if "logo" not in columns:
+        c.execute("ALTER TABLE stations ADD COLUMN logo TEXT")
+
     # Insérer les stations par défaut si la table est vide
     c.execute("SELECT COUNT(*) FROM stations")
     if c.fetchone()[0] == 0:
         for s in DEFAULT_STATIONS:
             c.execute(
-                "INSERT INTO stations (name, url, genre, is_default) VALUES (?, ?, ?, ?)",
-                (s["name"], s["url"], s["genre"], 1 if s["default"] else 0)
+                "INSERT INTO stations (name, url, genre, is_default, logo) VALUES (?, ?, ?, ?, ?)",
+                (s["name"], s["url"], s["genre"], 1 if s["default"] else 0, json.dumps(s.get("logo")))
             )
 
     conn.commit()
@@ -51,6 +56,16 @@ def init_db():
 
 
 # === STATIONS ===
+
+def _station(row):
+    """Ligne SQL -> dict, avec le logo décodé (grille 5x5 de "#rrggbb" ou None, ou None sans logo)."""
+    station = dict(row)
+    try:
+        station["logo"] = json.loads(station["logo"]) if station.get("logo") else None
+    except ValueError:
+        station["logo"] = None
+    return station
+
 
 def get_stations():
     """Stations (la station par défaut en premier), avec le nombre d'alarmes qui l'utilisent."""
@@ -61,38 +76,38 @@ def get_stations():
         ORDER BY s.is_default DESC, s.name
     """).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_station(r) for r in rows]
 
 
 def get_station(station_id):
     conn = get_db()
     row = conn.execute("SELECT * FROM stations WHERE id = ?", (station_id,)).fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _station(row) if row else None
 
 
 def get_default_station():
     conn = get_db()
     row = conn.execute("SELECT * FROM stations WHERE is_default = 1 LIMIT 1").fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _station(row) if row else None
 
 
-def add_station(name, url, genre=""):
+def add_station(name, url, genre="", logo=None):
     conn = get_db()
     conn.execute(
-        "INSERT INTO stations (name, url, genre) VALUES (?, ?, ?)",
-        (name, url, genre)
+        "INSERT INTO stations (name, url, genre, logo) VALUES (?, ?, ?, ?)",
+        (name, url, genre, json.dumps(logo) if logo else None)
     )
     conn.commit()
     conn.close()
 
 
-def update_station(station_id, name, url, genre=""):
+def update_station(station_id, name, url, genre="", logo=None):
     conn = get_db()
     cur = conn.execute(
-        "UPDATE stations SET name = ?, url = ?, genre = ? WHERE id = ?",
-        (name, url, genre, station_id)
+        "UPDATE stations SET name = ?, url = ?, genre = ?, logo = ? WHERE id = ?",
+        (name, url, genre, json.dumps(logo) if logo else None, station_id)
     )
     conn.commit()
     conn.close()
