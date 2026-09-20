@@ -3,6 +3,7 @@
 # Le Pi télécharge le flux radio (HTTP ou HTTPS), retire les métadonnées ICY et envoie les octets MP3
 # à l'ESP32 par le port série, en respectant le contrôle de débit annoncé par ses messages "BUF".
 
+import queue
 import threading
 import time
 
@@ -47,11 +48,13 @@ def _read_exact(raw, n):
 
 
 class AudioLink:
-    def __init__(self, port="/dev/ttyUSB0", baud=921600, on_metadata=None, on_event=None):
+    def __init__(self, port="/dev/ttyUSB0", baud=921600, on_metadata=None, on_event=None, on_input=None):
         self._port = port
         self._baud = baud
         self._on_metadata = on_metadata or (lambda title: None)
         self._on_event = on_event or (lambda line: None)
+        self._on_input = on_input or (lambda line: None)   # "BTN main"…
+        self._inputs = queue.Queue()
         self._serial = None
         self._write_lock = threading.Lock()
         self._cv = threading.Condition()
@@ -69,6 +72,7 @@ class AudioLink:
     def open(self, timeout=8.0):
         self._serial = serial.Serial(self._port, self._baud, timeout=0.2)
         threading.Thread(target=self._read_loop, daemon=True).start()
+        threading.Thread(target=self._input_loop, daemon=True).start()
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:      # l'ouverture du port redémarre souvent l'ESP32
             self._write(make_frame(T_PING))
@@ -132,11 +136,25 @@ class AudioLink:
                         self._awaiting_start = False
                         self._cv.notify_all()
                 self._on_event(line)
+            elif line.startswith("BTN "):
+                self._inputs.put(line)
             elif line.startswith("PONG"):
                 self._pong.set()
                 self._on_event(line)
             else:
                 self._on_event(line)
+
+    def _input_loop(self):
+        # Thread à part : un gestionnaire lent (play() attend la fin du relais) ne doit pas bloquer la lecture série.
+        while self._serial:
+            try:
+                line = self._inputs.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            try:
+                self._on_input(line)
+            except Exception as exc:
+                self._on_event(f"EVT entrée : {exc}")
 
     # ---- relais du flux ----
 

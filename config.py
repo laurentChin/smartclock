@@ -11,16 +11,7 @@ RGB_MATRIX_RGB_SEQUENCE     = "RBG"      # canaux G/B inversés sur ce modèle d
 RGB_MATRIX_BRIGHTNESS       = 50         # 0-100 : luminosité du contenu actif (réglage global du panneau)
 RGB_MATRIX_BRIGHTNESS_SECONDARY = 25     # 0-100 : luminosité du contenu secondaire (obtenue en logiciel)
 
-# === GPIO (numérotation BCM) ===
-# Boutons/encodeur relogés hors des broches utilisées par le panneau RGB
-# (mapping "regular" : 4,7,8,9,10,11,15,17,18,22,23,24,25,27) et hors I2S
-# (18,19,20,21, réservées si un DAC audio est ajouté plus tard).
-PIN_BTN_STOP     = 5    # bouton arrêt radio / snooze
-PIN_BTN_RADIO    = 6    # bouton radio 1h
-PIN_BTN_SNOOZE   = 13   # bouton snooze alarme
-PIN_ENC_CLK      = 16   # encodeur rotatif — CLK
-PIN_ENC_DT       = 26   # encodeur rotatif — DT
-PIN_ENC_SW       = 12   # encodeur rotatif — bouton poussoir
+# Boutons et encodeur : branchés sur l'ESP32, broches définies dans firmware/src/main.cpp
 
 # === RADIO / AUDIO (ESP32 en liaison série USB) ===
 AUDIO_PORT       = "/dev/ttyUSB0"

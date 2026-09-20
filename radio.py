@@ -19,6 +19,8 @@ class Radio:
         self._volume = DEFAULT_VOLUME
         # on_title(nom_station, titre) : appelé à chaque changement de titre (à brancher sur l'affichage)
         self.on_title = None
+        # on_input(ligne) : boutons et encodeur de l'ESP32 ("BTN main", "BTN vol_up"…)
+        self.on_input = None
 
     # ------------------------------------------------------------------ #
 
@@ -33,6 +35,7 @@ class Radio:
         try:
             link = AudioLink(AUDIO_PORT, AUDIO_BAUD,
                              on_metadata=self._set_title,
+                             on_input=lambda line: self.on_input and self.on_input(line),
                              on_event=lambda line: print(f"[audio] {line}") if line.startswith("EVT") else None)
             link.open()
             link.set_volume(self._volume)

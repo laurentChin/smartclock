@@ -12,10 +12,7 @@ Radio-réveil connecté basé sur Raspberry Pi, avec afficheur RGB LED matrix
 | Adaptateur écran | Adafruit RGB Matrix Bonnet (réf. 3211) | Header 40 broches du Pi |
 | Alimentation écran | Mean Well LRS-50-5 ou LRS-75-5 (5V) | Secteur → bornier de la Bonnet |
 | Audio | ESP32-WROOM-32 (Elegoo DevKit V1) + ampli I2S MAX98357A + haut-parleur | USB série (Pi ↔ ESP32), I2S (ESP32 ↔ ampli) |
-| Volume | Encodeur rotatif KY-040 | GPIO 16/26/12 *(à réattribuer, voir Points ouverts)* |
-| Bouton STOP | Poussoir | GPIO 5 *(à réattribuer)* |
-| Bouton RADIO | Poussoir | GPIO 6 *(à réattribuer)* |
-| Bouton SNOOZE | Poussoir | GPIO 13 *(à réattribuer)* |
+| Boutons | 3 poussoirs (principal, volume +, volume −) | GPIO 32 / 33 / 27 de l'ESP32, vers GND |
 
 > Un Raspberry Pi Zero 2W a aussi été utilisé pendant la mise au point, mais
 > l'exemplaire testé présentait un défaut d'adressage (lignes du panneau
@@ -55,6 +52,27 @@ STOP, VOLUME (0-100), PING ; l'ESP32 répond par des lignes texte (`BUF`, `STATE
 | VIN | VIN (5 V USB) |
 | GND | GND |
 | SD, GAIN | non connectés (mono G+D, gain 9 dB par défaut) |
+
+### Câblage des boutons (ESP32)
+
+| Bouton | Broche ESP32 |
+|---|---|
+| Principal (radio / stop / snooze) | GPIO 32 → GND |
+| Volume + | GPIO 33 → GND |
+| Volume − | GPIO 27 → GND |
+
+Résistances de rappel internes, pas de composant externe. Sur un poussoir à 4 broches, brancher
+deux broches **en diagonale** (les broches voisines sont reliées entre elles). Les trois GND
+peuvent partager un rail de breadboard relié à une broche GND de l'ESP32.
+
+Comportement (décidé côté Pi dans `controls.py`) :
+- **Bouton principal, appui court** : alarme en cours → snooze ; radio allumée → stop ;
+  sinon → radio par défaut pendant 1 h.
+- **Bouton principal, appui long (1 s)** : arrêt définitif (radio, alarme, snooze en attente).
+- **Volume ± ** : pas de 5 %, répété toutes les 150 ms si le bouton est maintenu.
+
+Les appuis sont envoyés par le même port série (`BTN main`, `BTN main_long`, `BTN vol_up`,
+`BTN vol_down`).
 
 Haut-parleur sur les bornes `+` / `-` de l'ampli. L'ESP32 est relié au Pi par son câble
 USB (`/dev/ttyUSB0`).
@@ -112,7 +130,6 @@ Réglages propres à ce panneau (dans `config.py`) :
 - **Flask** — interface web de configuration
 - **SQLite** — stockage alarmes et stations
 - **rpi-rgb-led-matrix** ([fork](https://github.com/laurentChin/RGB-Matrix-Px-xx)) — pilotage du panneau, bindings Python compilés localement, polices bitmap BDF dans `fonts/`
-- **RPi.GPIO** — gestion GPIO (encodeur, boutons)
 - **systemd** — démon au démarrage
 
 ## Structure
@@ -126,7 +143,7 @@ wakeupclock/
 ├── audio_link.py     ← relais du flux MP3 vers l'ESP32 (port série)
 ├── firmware/         ← firmware ESP32 (PlatformIO)
 ├── display.py        ← pilotage panneau RGB LED matrix (rgbmatrix)
-├── gpio_handler.py   ← boutons + encodeur rotatif
+├── controls.py       ← actions des boutons (reçus de l'ESP32)
 ├── config.py         ← constantes et configuration GPIO/panneau
 ├── database.py       ← accès SQLite (alarmes, stations)
 ├── fonts/            ← polices bitmap BDF pour le panneau
@@ -195,11 +212,8 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
 
 ## Points ouverts
 
-- **Broches boutons/encodeur** : les valeurs de `config.py` (5, 6, 13, 16, 26, 12)
-  sont utilisées par le mapping `adafruit-hat` (R1, B1, G1, G2, B, R2) et entrent en
-  conflit avec la Bonnet. À réattribuer sur des GPIO libres accessibles.
 - **Audio** : `radio.py` utilise `AudioLink` (validé sur banc avec FIP et France Info) ; léger
-  grésillement intermittent restant (pistes : APLL de l'ESP32, gain de l'ampli). Non testés :
-  alarmes, RTL2/NRJ (format à vérifier, l'AAC n'est pas géré), titres ICY de Jazz Radio.
-- **Boutons/encodeur** : prévus sur l'ESP32, avec remontée des événements au Pi par le même
-  port série.
+  grésillement intermittent restant (pistes : APLL de l'ESP32, gain de l'ampli). Alarme (déclenchement,
+  snooze, arrêt) validée sur banc. Non testés : RTL2/NRJ (format à vérifier, l'AAC n'est pas géré), titres ICY de Jazz Radio.
+- **Boutons** : firmware et logique validés (événements, appui long, répétition du volume).
+  Reste à essayer l'ensemble avec `app.py` lancé.

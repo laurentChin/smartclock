@@ -16,6 +16,9 @@ class AlarmDaemon:
         self._thread       = None
         self._last_checked = ""     # HH:MM déjà déclenché
         self._snoozed_until = None  # timestamp fin snooze
+        self._ringing      = False  # une alarme vient de démarrer la radio
+        self._snoozed_alarm = None  # alarme à rejouer à la fin du snooze
+        self._current_alarm = None  # dernière alarme déclenchée (rejouée après un snooze)
 
     def start(self):
         self._running = True
@@ -26,15 +29,24 @@ class AlarmDaemon:
     def stop(self):
         self._running = False
 
+    @property
+    def ringing(self):
+        """Vrai tant que la radio lancée par une alarme joue."""
+        return self._ringing and self.radio.is_playing
+
     def snooze(self):
         """Reporte l'alarme en cours de SNOOZE_DURATION secondes."""
+        self._ringing = False
         self.radio.stop()
         self.display.set_mode_clock()
+        self._snoozed_alarm = self._current_alarm
         self._snoozed_until = time.time() + SNOOZE_DURATION
         print(f"[alarm] Snooze {SNOOZE_DURATION}s")
 
     def dismiss(self):
-        """Arrête l'alarme définitivement."""
+        """Arrête l'alarme définitivement (annule aussi un snooze en attente)."""
+        self._ringing = False
+        self._snoozed_alarm = None
         self.radio.stop()
         self.display.set_mode_clock()
         self._snoozed_until = None
@@ -49,9 +61,15 @@ class AlarmDaemon:
             weekday    = DAYS_FR[now.tm_wday]   # 0=LU … 6=DI
 
             # Snooze en cours ?
-            if self._snoozed_until and time.time() < self._snoozed_until:
-                time.sleep(10)
-                continue
+            if self._snoozed_until:
+                remaining = self._snoozed_until - time.time()
+                if remaining > 0:
+                    time.sleep(min(10, remaining))   # réveil précis à la fin du snooze
+                    continue
+                alarm, self._snoozed_alarm, self._snoozed_until = self._snoozed_alarm, None, None
+                if alarm:
+                    print("[alarm] Fin du snooze")
+                    self._trigger(alarm)
 
             # Vérifier seulement une fois par minute
             if current_hm != self._last_checked:
@@ -63,6 +81,7 @@ class AlarmDaemon:
             time.sleep(15)
 
     def _trigger(self, alarm):
+        self._current_alarm = alarm
         print(f"[alarm] Déclenchement : {alarm['time']} — {alarm.get('station_name','?')}")
 
         # Récupérer l'URL de la station
@@ -73,6 +92,7 @@ class AlarmDaemon:
             station = get_default_station()
 
         if station:
+            self._ringing = True
             self.display.set_mode_alarm(station["name"])
             self.radio.play(
                 station["url"],

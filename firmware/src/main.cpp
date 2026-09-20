@@ -10,6 +10,11 @@
 //   BUF <octets libres> <octets audio reçus>   toutes les 100 ms pendant une lecture (contrôle de débit)
 //   STATE idle|prebuffer|playing, EVT <...>, OK <...>, PONG <...>, BOOT <...>
 //
+// Boutons — ESP32 -> Pi, lignes de texte :
+//   BTN main        appui court (envoyé au relâchement)
+//   BTN main_long   appui maintenu 1 s (envoyé dès le seuil atteint)
+//   BTN vol_up|vol_down   appui, répété toutes les 150 ms tant que le bouton est maintenu
+//
 // La somme de contrôle est celle de type + longueur + charge utile, modulo 256.
 
 #include <Arduino.h>
@@ -28,6 +33,16 @@ static const uint32_t UNDERRUN_WAIT_MS   = 300;
 static const uint32_t BUF_REPORT_MS      = 100;
 static const float    MAX_GAIN           = 1.0f;        // volume 100 = gain 1.0
 static const size_t   MAX_PAYLOAD        = 1024;
+
+// Boutons vers GND (résistance de rappel interne). Broches choisies hors bootstrap (0, 2, 12, 15),
+// flash (6-11), UART (1, 3) et I2S (22, 25, 26).
+static const int PIN_BTN_MAIN     = 32;   // radio 1 h / stop / snooze selon le contexte (décidé côté Pi)
+static const int PIN_BTN_VOL_UP   = 33;
+static const int PIN_BTN_VOL_DOWN = 27;
+static const uint32_t DEBOUNCE_MS = 30;
+static const uint32_t LONG_PRESS_MS   = 1000;  // appui long du bouton principal
+static const uint32_t REPEAT_DELAY_MS = 400;   // maintien avant répétition (boutons de volume)
+static const uint32_t REPEAT_EVERY_MS = 150;
 
 enum : uint8_t { FRAME_MAGIC = 0xA5, T_AUDIO = 1, T_START = 2, T_STOP = 3, T_VOLUME = 4, T_PING = 5 };
 
@@ -75,6 +90,42 @@ static void stopDecoder() {
   if (mp3) { mp3->stop(); delete mp3; mp3 = nullptr; }
 }
 
+// ---- Boutons ----
+struct Button {
+  uint8_t pin; const char *name; bool repeat; bool longPress;
+  bool down; bool longSent; unsigned long changedAt; unsigned long nextRepeat;
+};
+static Button buttons[] = {
+  { PIN_BTN_MAIN,     "main",     false, true,  false, false, 0, 0 },
+  { PIN_BTN_VOL_UP,   "vol_up",   true,  false, false, false, 0, 0 },
+  { PIN_BTN_VOL_DOWN, "vol_down", true,  false, false, false, 0, 0 },
+};
+
+static void pollButtons() {
+  unsigned long now = millis();
+  for (auto &b : buttons) {
+    bool down = digitalRead(b.pin) == LOW;
+    if (down != b.down && now - b.changedAt >= DEBOUNCE_MS) {
+      bool wasLong = b.longSent;
+      b.down = down;
+      b.changedAt = now;
+      b.longSent = false;
+      if (down) {
+        b.nextRepeat = now + REPEAT_DELAY_MS;
+        if (!b.longPress) Serial.printf("BTN %s\n", b.name);
+      } else if (b.longPress && !wasLong) {
+        Serial.printf("BTN %s\n", b.name);          // appui court : signalé au relâchement
+      }
+    } else if (down && b.longPress && !b.longSent && now - b.changedAt >= LONG_PRESS_MS) {
+      b.longSent = true;
+      Serial.printf("BTN %s_long\n", b.name);
+    } else if (down && b.repeat && now >= b.nextRepeat) {
+      Serial.printf("BTN %s\n", b.name);
+      b.nextRepeat = now + REPEAT_EVERY_MS;
+    }
+  }
+}
+
 // ---- Analyse des trames reçues ----
 static void pumpSerial();
 
@@ -108,7 +159,7 @@ static void handleFrame(uint8_t type, const uint8_t *payload, uint16_t len) {
       }
       break;
     case T_PING:
-      Serial.printf("PONG smartclock-audio 0.2 heap=%u overflow=%u bad=%u underrun=%u maxdec_us=%u\n",
+      Serial.printf("PONG smartclock-audio 0.3 heap=%u overflow=%u bad=%u underrun=%u maxdec_us=%u\n",
                     (unsigned)ESP.getFreeHeap(), overflowFrames, badFrames, underruns, maxDecodeUs);
       break;
   }
@@ -186,7 +237,9 @@ void setup() {
   Serial.setRxBufferSize(8192);
   Serial.begin(SERIAL_BAUD);
   Serial.println();
-  Serial.printf("BOOT smartclock-audio 0.2 baud=%u\n", (unsigned)SERIAL_BAUD);
+  Serial.printf("BOOT smartclock-audio 0.3 baud=%u\n", (unsigned)SERIAL_BAUD);
+
+  for (auto &b : buttons) pinMode(b.pin, INPUT_PULLUP);
 
   out = new AudioOutputI2S(0, AudioOutputI2S::EXTERNAL_I2S, 48);
   out->SetPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
@@ -196,6 +249,7 @@ void setup() {
 
 void loop() {
   pumpSerial();
+  pollButtons();
   if (!streaming) return;
 
   if (prebuffering && ringCount >= PREBUFFER_BYTES) startDecoder();

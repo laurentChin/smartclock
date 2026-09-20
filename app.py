@@ -8,7 +8,7 @@ import database as db
 from radio import radio
 from display import display
 from alarm import AlarmDaemon
-from gpio_handler import GPIOHandler
+from controls import ControlsHandler
 
 app = Flask(__name__)
 
@@ -21,8 +21,8 @@ radio.start()
 alarm_daemon = AlarmDaemon(radio, display)
 alarm_daemon.start()
 
-gpio = GPIOHandler(radio, alarm_daemon, display, db)
-gpio.setup()
+controls = ControlsHandler(radio, alarm_daemon, display, db)
+controls.setup()
 
 display.set_mode_clock()
 
@@ -151,4 +151,3 @@ if __name__ == "__main__":
         app.run(host=FLASK_HOST, port=FLASK_PORT, debug=FLASK_DEBUG, use_reloader=False)
     finally:
         display.stop()
-        gpio.cleanup()
