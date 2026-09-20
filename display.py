@@ -175,12 +175,18 @@ class RGBMatrixDisplay:
         self._volume_level = max(0, min(VOLUME_PIXELS, int(percent) // 10))
         self._volume_until = time.monotonic() + VOLUME_HIDE_S
 
-    def set_mode_clock(self, next_alarm="", alarm_count=None, alarm_index=0):
-        """next_alarm : "HH:MM". Sans alarm_count, un seul pixel est affiché si une alarme existe."""
-        self._mode = "clock"
+    def set_alarms(self, next_alarm="", alarm_count=None, alarm_index=0):
+        """next_alarm : "HH:MM". Sans alarm_count, un seul pixel est affiché si une alarme existe.
+        Mémorisé pour tous les modes : le mode d'affichage n'est pas modifié."""
         self._next_alarm = next_alarm
         self._alarm_count = alarm_count if alarm_count is not None else (1 if next_alarm else 0)
         self._alarm_index = alarm_index
+
+    def set_mode_clock(self, next_alarm=None, alarm_count=None, alarm_index=0):
+        """Sans next_alarm, les alarmes déjà mémorisées sont conservées."""
+        self._mode = "clock"
+        if next_alarm is not None:
+            self.set_alarms(next_alarm, alarm_count, alarm_index)
 
     def set_mode_radio(self, station_name, program="", logo=None):
         self._mode = "radio"

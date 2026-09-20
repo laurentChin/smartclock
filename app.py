@@ -7,7 +7,7 @@ from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG
 import database as db
 from radio import radio
 from display import display
-from alarm import AlarmDaemon
+from alarm import AlarmDaemon, DAYS_FR
 from controls import ControlsHandler
 
 app = Flask(__name__)
@@ -80,28 +80,63 @@ def api_get_alarms():
     return jsonify(db.get_alarms())
 
 
+def _alarm_from_request():
+    """Lit et valide le corps JSON d'une alarme. Retourne (valeurs, None) ou (None, message d'erreur)."""
+    data = request.get_json(silent=True) or {}
+    time_value = str(data.get("time", ""))
+    try:
+        hour, minute = map(int, time_value.split(":"))
+        valid_time = len(time_value) == 5 and 0 <= hour < 24 and 0 <= minute < 60
+    except ValueError:
+        valid_time = False
+    if not valid_time:
+        return None, "Heure invalide (format HH:MM)"
+    days = data.get("days")
+    if not isinstance(days, list) or not days or not all(d in DAYS_FR for d in days):
+        return None, "Choisis au moins un jour"
+    if data.get("station_id") not in {s["id"] for s in db.get_stations()}:
+        return None, "Station inconnue"
+    return {
+        "time": time_value,
+        "days": [d for d in DAYS_FR if d in days],
+        "station_id": data["station_id"],
+        "label": str(data.get("label", "")).strip()[:40],
+    }, None
+
+
 @app.route("/api/alarms", methods=["POST"])
 def api_add_alarm():
-    data = request.json
-    db.add_alarm(
-        time=data["time"],
-        days=data["days"],
-        station_id=data["station_id"],
-        label=data.get("label", "")
-    )
+    values, error = _alarm_from_request()
+    if error:
+        return jsonify({"error": error}), 400
+    db.add_alarm(**values)
+    alarm_daemon.refresh_display()
     return jsonify({"status": "ok"}), 201
+
+
+@app.route("/api/alarms/<int:alarm_id>", methods=["PUT"])
+def api_update_alarm(alarm_id):
+    values, error = _alarm_from_request()
+    if error:
+        return jsonify({"error": error}), 400
+    if not db.update_alarm(alarm_id, **values):
+        return jsonify({"error": "Alarme introuvable"}), 404
+    alarm_daemon.refresh_display()
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/alarms/<int:alarm_id>", methods=["DELETE"])
 def api_delete_alarm(alarm_id):
     db.delete_alarm(alarm_id)
+    alarm_daemon.refresh_display()
     return jsonify({"status": "ok"})
 
 
 @app.route("/api/alarms/<int:alarm_id>/toggle", methods=["POST"])
 def api_toggle_alarm(alarm_id):
-    enabled = request.json.get("enabled", True)
+    enabled = (request.get_json(silent=True) or {}).get("enabled", True)
     db.toggle_alarm(alarm_id, enabled)
+    alarm_daemon.refresh_display()
     return jsonify({"status": "ok"})
 
 

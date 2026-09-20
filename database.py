@@ -120,6 +120,18 @@ def add_alarm(time, days, station_id, label=""):
     conn.close()
 
 
+def update_alarm(alarm_id, time, days, station_id, label=""):
+    conn = get_db()
+    conn.execute(
+        "UPDATE alarms SET time = ?, days = ?, station_id = ?, label = ? WHERE id = ?",
+        (time, json.dumps(days), station_id, label, alarm_id)
+    )
+    conn.commit()
+    changed = conn.total_changes
+    conn.close()
+    return changed > 0
+
+
 def toggle_alarm(alarm_id, enabled):
     conn = get_db()
     conn.execute("UPDATE alarms SET enabled = ? WHERE id = ?", (1 if enabled else 0, alarm_id))

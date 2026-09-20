@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Réveil</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="top">
+    <h1>Réveil</h1>
+  </header>
+
+  <main>
+    <section aria-labelledby="alarms-title">
+      <div class="section-head">
+        <h2 id="alarms-title">Alarmes</h2>
+        <button type="button" id="add-alarm" class="btn primary">Ajouter</button>
+      </div>
+      <ul id="alarm-list" class="alarm-list"></ul>
+      <p id="alarm-empty" class="empty" hidden>Aucune alarme. Ajoutes-en une pour être réveillé par la radio.</p>
+    </section>
+  </main>
+
+  <dialog id="alarm-dialog" aria-labelledby="dialog-title">
+    <form id="alarm-form" novalidate>
+      <h2 id="dialog-title" tabindex="-1" autofocus>Nouvelle alarme</h2>
+
+      <label class="field">
+        <span>Heure</span>
+        <input type="time" id="f-time" required value="07:00">
+      </label>
+
+      <fieldset class="field">
+        <legend>Jours</legend>
+        <div class="days" id="f-days">
+          {% for code, name in [("LU","Lundi"),("MA","Mardi"),("ME","Mercredi"),("JE","Jeudi"),("VE","Vendredi"),("SA","Samedi"),("DI","Dimanche")] %}
+          <label class="day">
+            <input type="checkbox" value="{{ code }}" aria-label="{{ name }}">
+            <span aria-hidden="true">{{ code }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="presets">
+          <button type="button" class="link" data-preset="LU,MA,ME,JE,VE">Semaine</button>
+          <button type="button" class="link" data-preset="SA,DI">Week-end</button>
+          <button type="button" class="link" data-preset="LU,MA,ME,JE,VE,SA,DI">Tous les jours</button>
+        </div>
+      </fieldset>
+
+      <label class="field">
+        <span>Station</span>
+        <select id="f-station" required></select>
+      </label>
+
+      <label class="field">
+        <span>Nom <em>(facultatif)</em></span>
+        <input type="text" id="f-label" maxlength="40" placeholder="Travail, week-end…">
+      </label>
+
+      <p id="form-error" class="error" role="alert" hidden></p>
+
+      <div class="actions">
+        <button type="button" id="delete-alarm" class="btn danger" hidden>Supprimer</button>
+        <span class="spacer"></span>
+        <button type="button" id="cancel-alarm" class="btn">Annuler</button>
+        <button type="submit" class="btn primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <p id="toast" class="toast" role="status" hidden></p>
+
+  <script id="initial-data" type="application/json">{{ {"alarms": alarms, "stations": stations}|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

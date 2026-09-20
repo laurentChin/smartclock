@@ -1,11 +1,37 @@
 # alarm.py — démon de surveillance et déclenchement des alarmes
 
+import datetime
 import time
 import threading
 from config import SNOOZE_DURATION, RADIO_DURATION
-from database import get_active_alarms_for_now, get_default_station, get_stations
+from database import get_active_alarms_for_now, get_alarms, get_default_station, get_stations
 
 DAYS_FR = ["LU", "MA", "ME", "JE", "VE", "SA", "DI"]
+
+
+def summarize_alarms(alarms, now=None):
+    """(heure "HH:MM" de la prochaine alarme, nombre d'alarmes actives, rang de la prochaine).
+
+    Les alarmes actives sont classées par heure ; le rang est celui de la prochaine à sonner
+    (jour et heure). Sans alarme active : ("", 0, 0)."""
+    now = now or datetime.datetime.now()
+    active = sorted((a for a in alarms if a["enabled"] and a["days"]), key=lambda a: a["time"])
+    if not active:
+        return "", 0, 0
+
+    def next_ring(alarm):
+        hour, minute = map(int, alarm["time"].split(":"))
+        for offset in range(8):
+            day = now + datetime.timedelta(days=offset)
+            if DAYS_FR[day.weekday()] not in alarm["days"]:
+                continue
+            ring = day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if ring > now:
+                return ring
+        return datetime.datetime.max
+
+    soonest = min(range(len(active)), key=lambda i: next_ring(active[i]))
+    return active[soonest]["time"], len(active), soonest
 
 
 class AlarmDaemon:
@@ -19,6 +45,10 @@ class AlarmDaemon:
         self._ringing      = False  # une alarme vient de démarrer la radio
         self._snoozed_alarm = None  # alarme à rejouer à la fin du snooze
         self._current_alarm = None  # dernière alarme déclenchée (rejouée après un snooze)
+
+    def refresh_display(self):
+        """Met à jour sur le panneau le compteur d'alarmes et l'heure de la prochaine."""
+        self.display.set_alarms(*summarize_alarms(get_alarms()))
 
     def start(self):
         self._running = True
@@ -56,6 +86,10 @@ class AlarmDaemon:
 
     def _loop(self):
         while self._running:
+            try:
+                self.refresh_display()
+            except Exception as exc:
+                print(f"[alarm] Mise à jour de l'affichage impossible : {exc}")
             now        = time.localtime()
             current_hm = time.strftime("%H:%M", now)
             weekday    = DAYS_FR[now.tm_wday]   # 0=LU … 6=DI
