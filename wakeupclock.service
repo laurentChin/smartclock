@@ -1,13 +1,15 @@
 [Unit]
 Description=WakeUpClock — Radio réveil connecté
-After=network.target mpd.service
-Wants=mpd.service
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/Workspace/wakeupclock
-ExecStart=/home/pi/Workspace/wakeupclock/venv/bin/python app.py
+# root : le pilotage du panneau RGB (GPIO/DMA) l'exige
+User=root
+WorkingDirectory=/home/smartclock/smartclock
+# -u : sortie non bufferisée, pour retrouver les messages en direct dans journalctl
+ExecStart=/home/smartclock/venv/bin/python -u app.py
 Restart=on-failure
 RestartSec=5
 

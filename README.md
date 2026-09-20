@@ -191,10 +191,12 @@ pip install ./RGB-Matrix-Px-xx/example/Rasberry-Pi
 # Lancer en développement (accès GPIO/DMA : root requis)
 sudo venv/bin/python app.py
 
-# Installer le service systemd
+# Installer le service systemd (adapter User/WorkingDirectory/ExecStart de wakeupclock.service
+# à l'emplacement du projet et du venv ; le service tourne en root pour piloter le panneau)
 sudo cp wakeupclock.service /etc/systemd/system/
-sudo systemctl enable wakeupclock
-sudo systemctl start wakeupclock
+sudo systemctl daemon-reload
+sudo systemctl enable --now wakeupclock
+journalctl -u wakeupclock -f      # messages en direct
 ```
 
 > Sur un Pi avec peu de RAM (Zero 2W : ~415 Mo utilisables), la compilation des
