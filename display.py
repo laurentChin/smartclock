@@ -129,6 +129,7 @@ class RGBMatrixDisplay:
         self._radio_program = ""
         self._radio_logo = None     # grille de couleurs, None = logo par défaut
         self._alarm_label = ""
+        self._snooze_until = None   # instant (time.time()) de fin du snooze en cours, None sinon
         self._temperature = None    # None : zone vide ; nombre : température en °C ; "--" : mesure absente
         self._volume_level = 0      # pixels allumés de l'indicateur de volume
         self._volume_until = 0.0    # instant (monotonic) où l'indicateur disparaît
@@ -194,6 +195,11 @@ class RGBMatrixDisplay:
         self._next_alarm = next_alarm
         self._alarm_count = alarm_count if alarm_count is not None else (1 if next_alarm else 0)
         self._alarm_index = alarm_index
+
+    def set_snooze(self, until):
+        """Snooze en cours jusqu'à `until` (time.time()) : la zone d'alarme clignote et affiche l'heure de
+        reprise. None : plus de snooze (alarme arrêtée ou de nouveau en train de sonner)."""
+        self._snooze_until = until
 
     def set_temperature(self, celsius):
         """Température de la pièce choisie (en °C). None : zone vide (Netatmo non configuré) ;
@@ -277,16 +283,28 @@ class RGBMatrixDisplay:
                 put2(WEEK_POS[0] + 2 * i, WEEK_POS[1], WEEKEND_DIM if weekend else DAY_DIM)
 
     def _draw_next_alarm(self, put, put2):
-        """Un pixel par alarme définie (la plus proche est active), puis son heure (secondaire)."""
-        digits = self._next_alarm.replace(":", "")
-        if not (self._alarm_count and len(digits) == 4 and digits.isdigit()):
-            return
-        for i in range(min(self._alarm_count, MAX_ALARM_DOTS)):
-            draw = put if i == self._alarm_index else put2
+        """Un pixel par alarme définie (la plus proche est active), puis son heure (secondaire).
+        Pendant un snooze : l'heure de reprise à la place, et toute la zone clignote (0,5 s allumée / 0,5 s
+        éteinte) pour montrer que l'alarme est seulement reportée. Retourne True pendant un snooze."""
+        snoozing = self._snooze_until is not None and time.time() < self._snooze_until
+        if snoozing:
+            digits = time.strftime("%H%M", time.localtime(self._snooze_until))
+            count = max(self._alarm_count, 1)
+            index = min(self._alarm_index, count - 1)
+            if int(time.monotonic() * 2) % 2:
+                return True
+        else:
+            digits = self._next_alarm.replace(":", "")
+            count, index = self._alarm_count, self._alarm_index
+        if not (count and len(digits) == 4 and digits.isdigit()):
+            return snoozing
+        for i in range(min(count, MAX_ALARM_DOTS)):
+            draw = put if i == index else put2
             draw(ALARM_COUNT_POS[0] + 2 * i, ALARM_COUNT_POS[1],
-                 ALARM_ACTIVE if i == self._alarm_index else ALARM_DIM)
+                 ALARM_ACTIVE if i == index else ALARM_DIM)
         glyphs.draw_small(put2, ALARM_TIME_POS[0], ALARM_TIME_POS[1], digits[:2], digits[2:],
                           ALARM_ACTIVE, sep="dots")
+        return snoozing
 
     def _draw_radio(self, canvas, put, station, program):
         """Logo à gauche, deux lignes de texte à droite. Retourne True pendant un défilement."""
@@ -362,9 +380,9 @@ class RGBMatrixDisplay:
         glyphs.draw_time(put, TIME_POS[0], TIME_POS[1], hh, mm, WHITE)
         self._draw_week(put, put2, now.tm_wday)
         glyphs.draw_small(put2, DATE_POS[0], DATE_POS[1], day, month, WHITE, sep="bar", sep_color=GRAY_50)
-        self._draw_next_alarm(put, put2)
+        blinking = self._draw_next_alarm(put, put2)
         self._draw_temperature(put2)
-        scrolling = self._draw_radio(canvas, put, station, program) if radio_visible else False
+        scrolling = (self._draw_radio(canvas, put, station, program) if radio_visible else False) or blinking
         if time.monotonic() < self._volume_until:
             self._draw_volume(put, put2)
             scrolling = True    # rafraîchissement rapide tant que l'indicateur est visible

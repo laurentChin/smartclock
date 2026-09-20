@@ -78,6 +78,11 @@ Comportement (décidé côté Pi dans `controls.py`) :
 - **Bouton principal, appui long (1 s)** : arrêt définitif (radio, alarme, snooze en attente).
 - **Volume ± ** : pas de 5 %, répété toutes les 150 ms si le bouton est maintenu.
 
+Alarme en snooze : tant qu'une alarme est seulement reportée (et non arrêtée), la zone d'alarme du panneau
+(les points et l'heure sous la date) clignote à 1 Hz et affiche l'heure de reprise à la place de la prochaine
+alarme. Le clignotement cesse quand l'alarme reprend, ou quand on l'arrête (appui long ou
+`POST /api/alarm/dismiss`).
+
 Indicateur de volume (`display.py`, maquette Figma) : colonne de 10 pixels à gauche du logo
 (x=2, lignes 19-28), remplie depuis le bas, un pixel par tranche de 10 % (donc mise à jour
 tous les deux pas de 5 %). Elle s'affiche à chaque changement de volume (boutons ou interface

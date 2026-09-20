@@ -71,12 +71,14 @@ class AlarmDaemon:
         self.display.set_mode_clock()
         self._snoozed_alarm = self._current_alarm
         self._snoozed_until = time.time() + SNOOZE_DURATION
+        self.display.set_snooze(self._snoozed_until)     # l'alarme clignote jusqu'à sa reprise
         print(f"[alarm] Snooze {SNOOZE_DURATION}s")
 
     def dismiss(self):
         """Arrête l'alarme définitivement (annule aussi un snooze en attente)."""
         self._ringing = False
         self._snoozed_alarm = None
+        self.display.set_snooze(None)
         self.radio.stop()
         self.display.set_mode_clock()
         self._snoozed_until = None
@@ -101,6 +103,7 @@ class AlarmDaemon:
                     time.sleep(min(10, remaining))   # réveil précis à la fin du snooze
                     continue
                 alarm, self._snoozed_alarm, self._snoozed_until = self._snoozed_alarm, None, None
+                self.display.set_snooze(None)
                 if alarm:
                     print("[alarm] Fin du snooze")
                     self._trigger(alarm)
