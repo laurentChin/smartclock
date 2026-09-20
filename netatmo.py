@@ -66,14 +66,23 @@ class Netatmo:
             return {}
 
     def _save(self):
-        """Écriture atomique avec les droits 600 : ce fichier contient des secrets."""
+        """Écriture atomique avec les droits 600 : ce fichier contient des secrets. Le contenu puis le renommage
+        sont forcés sur le disque (fsync) : Netatmo invalide l'ancien jeton à chaque rotation, une coupure de courant
+        qui laisserait un fichier vide obligerait à tout reconnecter."""
         directory = os.path.dirname(os.path.abspath(self._path()))
         fd, tmp = tempfile.mkstemp(dir=directory, prefix=".netatmo-")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(self._data, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
             os.chmod(tmp, 0o600)
             os.replace(tmp, self._path())
+            dir_fd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
         except OSError:
             try:
                 os.unlink(tmp)

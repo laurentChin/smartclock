@@ -26,6 +26,47 @@ Radio-réveil connecté basé sur Raspberry Pi, avec afficheur RGB LED matrix
 > manquantes, quel que soit le câblage). Le même panneau et la même Bonnet
 > fonctionnent parfaitement sur le Pi 3B+.
 
+## Alimentation du boîtier
+
+**Mesures** (courant lu sur l'alimentation du panneau, 5 V) avec `tools/power_scenarios.py`, luminosité
+configurée à 50 % :
+
+| Scénario | Courant |
+|---|---|
+| Horloge seule | 0,092 A |
+| Écran le plus chargé (radio, alarme, température, volume) | 0,104 A |
+| Tout blanc à 50 % | 0,290 A |
+| Tout blanc à 100 % (pire cas, 10 s) | 1,236 A |
+
+La branche du Pi (Pi + ESP32 + ampli + haut-parleur) n'a pas été mesurée : les valeurs retenues sont les
+valeurs publiées (Pi 3B+ : environ 1 A courant, 2,5 A en pointe ; ESP32 : 0,1 A ; MAX98357A : jusqu'à 3,2 W,
+soit 0,8 A à fond).
+
+**Budget** : environ 1,5 A en fonctionnement normal ; environ 3,7 A en cumulant tous les pires cas avec la
+luminosité configurée ; environ 4,6 A si la luminosité montait à 100 %.
+
+**Solution retenue pour le boîtier** : un adaptateur externe certifié **5 V / 5 A** (6 A si la luminosité
+dépasse 50 %), sortie 5,0 à 5,2 V pour compenser la chute dans les fils, sur une prise DC 5,5 × 2,1 mm. Aucun
+230 V à l'intérieur du boîtier. À l'intérieur, une distribution en étoile :
+- fusible d'environ 6 A et condensateur de 2200 µF au départ de la distribution ;
+- trois branches courtes en fil épais (18 AWG environ) : le panneau (bornes de la Bonnet), le Pi (câble
+  micro-USB coupé, pour garder son fusible et sa détection de sous-tension) et l'ESP32 avec l'ampli ;
+- le câble USB entre le Pi et l'ESP32 ne transporte que les données (fil rouge coupé) pour éviter deux
+  sources sur la même carte ;
+- ne pas alimenter le Pi par la Bonnet : sa diode limite à 1 A
+  ([forum Adafruit](https://forums.adafruit.com/viewtopic.php?t=180682)).
+
+**Thermique** : le processeur atteint environ 56 °C une minute après le démarrage, hors boîtier (limite
+douce à 60 °C). Prévoir des aérations et un petit dissipateur.
+
+**Vérification** : `vcgencmd get_throttled` doit renvoyer `0x0` (le bit `0x80000` seul signale la limite de
+température) et `sudo dmesg | grep -i undervoltage` ne rien afficher.
+
+**Coupures de courant** : déjà en place, le système en `noatime`, le swap en mémoire (zram), aucun journal
+système persistant, SQLite en mode sûr (`synchronous=FULL`) et le fichier de jeton Netatmo écrit puis
+synchronisé sur disque (`fsync`). Pour la version finale, un système en lecture seule (overlay) demandera une
+partition de données séparée, à prévoir en fabriquant l'image de la carte.
+
 ## Architecture audio
 
 Le panneau RGB monopolise une grande partie des GPIO du Pi (dont l'I2S, broches 18-21) :
@@ -321,6 +362,12 @@ sudo systemctl disable lightdm
 sudo reboot
 ```
 
+Sur Raspberry Pi OS avec bureau, désinstaller ensuite les paquets du bureau libère environ 3 Go (Chromium,
+Firefox, VLC, VNC, imageur, thème `rpd-*`, `labwc`, `lightdm`…). Toujours simuler avant
+(`apt-get -s purge …`, puis `apt-get -s autoremove --purge`) et vérifier que Python, Caddy, avahi, SSH,
+NetworkManager, le Wi-Fi, git, les compilateurs et cmake ne figurent pas dans la liste. Les environnements
+Python du projet (`include-system-site-packages = false`) n'utilisent pas les paquets Python du système.
+
 ```bash
 # Environnement Python
 python3 -m venv venv
@@ -375,4 +422,6 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
   `homesdata` / `homestatus`, jeton de renouvellement avec la portée `read_thermostat`).
 - **Interface web** : alarmes, stations, température et système faits. Le serveur est le serveur de
   développement de Flask, suffisant sur un réseau domestique.
+- **Alimentation** : plan défini (voir « Alimentation du boîtier ») ; à réaliser dans le boîtier. La branche du
+  Pi reste à mesurer avec un wattmètre USB si l'on veut affiner la marge.
 - **Figma** : la maquette n'a pas encore la zone température ; les logos 7 × 7 y sont à vérifier.
