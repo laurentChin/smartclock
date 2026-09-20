@@ -61,6 +61,7 @@ static bool streaming = false;
 static bool prebuffering = false;
 static int volume = 30;
 static uint32_t overflowFrames = 0, badFrames = 0, underruns = 0;
+static uint32_t maxDecodeUs = 0;   // plus longue durée d'un appel à mp3->loop() (diagnostic)
 static unsigned long lastBufReport = 0;
 
 static void applyVolume() { out->SetGain(MAX_GAIN * volume / 100.0f); }
@@ -84,6 +85,7 @@ static void handleFrame(uint8_t type, const uint8_t *payload, uint16_t len) {
       if (ringPush(payload, len)) audioBytesReceived += len; else overflowFrames++;
       break;
     case T_START:
+      maxDecodeUs = 0;
       stopDecoder();
       ringClear();
       streaming = true;
@@ -106,8 +108,8 @@ static void handleFrame(uint8_t type, const uint8_t *payload, uint16_t len) {
       }
       break;
     case T_PING:
-      Serial.printf("PONG smartclock-audio 0.2 heap=%u overflow=%u bad=%u underrun=%u\n",
-                    (unsigned)ESP.getFreeHeap(), overflowFrames, badFrames, underruns);
+      Serial.printf("PONG smartclock-audio 0.2 heap=%u overflow=%u bad=%u underrun=%u maxdec_us=%u\n",
+                    (unsigned)ESP.getFreeHeap(), overflowFrames, badFrames, underruns, maxDecodeUs);
       break;
   }
 }
@@ -186,7 +188,7 @@ void setup() {
   Serial.println();
   Serial.printf("BOOT smartclock-audio 0.2 baud=%u\n", (unsigned)SERIAL_BAUD);
 
-  out = new AudioOutputI2S();
+  out = new AudioOutputI2S(0, AudioOutputI2S::EXTERNAL_I2S, 48);
   out->SetPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
   out->SetOutputModeMono(true);
   applyVolume();
@@ -199,7 +201,11 @@ void loop() {
   if (prebuffering && ringCount >= PREBUFFER_BYTES) startDecoder();
 
   if (mp3 && mp3->isRunning()) {
-    if (!mp3->loop()) {
+    uint32_t t0 = micros();
+    bool ok = mp3->loop();
+    uint32_t dt = micros() - t0;
+    if (dt > maxDecodeUs) maxDecodeUs = dt;
+    if (!ok) {
       underruns++;
       stopDecoder();
       prebuffering = true;

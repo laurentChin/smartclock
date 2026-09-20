@@ -1,7 +1,7 @@
 # WakeUpClock
 
 Radio-réveil connecté basé sur Raspberry Pi, avec afficheur RGB LED matrix
-(branché via une Bonnet Adafruit) et audio déporté sur ESP32-S3 (USB Audio Class).
+(branché via une Bonnet Adafruit) et audio déporté sur un ESP32 (flux MP3 relayé par le port série USB).
 
 ## Matériel
 
@@ -11,7 +11,7 @@ Radio-réveil connecté basé sur Raspberry Pi, avec afficheur RGB LED matrix
 | Écran | RGB LED Matrix HUB75 64×32, pas 2,5mm (Waveshare) | Nappe HUB75 → Bonnet |
 | Adaptateur écran | Adafruit RGB Matrix Bonnet (réf. 3211) | Header 40 broches du Pi |
 | Alimentation écran | Mean Well LRS-50-5 ou LRS-75-5 (5V) | Secteur → bornier de la Bonnet |
-| Audio | ESP32-S3 (USB Audio Class) + DAC I2S PCM5102A | USB (Pi ↔ ESP32), I2S (ESP32 ↔ DAC) |
+| Audio | ESP32-WROOM-32 (Elegoo DevKit V1) + ampli I2S MAX98357A + haut-parleur | USB série (Pi ↔ ESP32), I2S (ESP32 ↔ ampli) |
 | Volume | Encodeur rotatif KY-040 | GPIO 16/26/12 *(à réattribuer, voir Points ouverts)* |
 | Bouton STOP | Poussoir | GPIO 5 *(à réattribuer)* |
 | Bouton RADIO | Poussoir | GPIO 6 *(à réattribuer)* |
@@ -24,17 +24,62 @@ Radio-réveil connecté basé sur Raspberry Pi, avec afficheur RGB LED matrix
 
 ## Architecture audio
 
-L'audio ne passe plus par le Pi : le panneau RGB monopolise une grande partie des GPIO
-(dont l'interface I2S, broches 18-21), donc le DAC audio est piloté par un ESP32-S3
-séparé plutôt que par le Pi lui-même.
+Le panneau RGB monopolise une grande partie des GPIO du Pi (dont l'I2S, broches 18-21) :
+l'audio est donc joué par un ESP32 branché en USB sur le Pi. Ce n'est pas une carte son USB
+(l'ESP32 classique n'a pas d'USB natif) : le Pi lui envoie le flux **MP3 compressé** par le
+port série, et l'ESP32 le décode. Il n'utilise pas le Wi-Fi.
 
 ```
-Pi (USB) → ESP32-S3 (USB Audio Class + I2S) → DAC PCM5102A → haut-parleur
+Internet ─(HTTP/HTTPS)→ Pi (audio_link.py) ─(USB série 921600 bauds)→ ESP32 (décodage MP3)
+                                                        ─(I2S)→ MAX98357A → haut-parleur
 ```
 
-Le Pi voit l'ESP32-S3 comme une carte son USB générique (ALSA) — aucune intégration
-logicielle spécifique n'est nécessaire côté `radio.py`/MPD au-delà du choix du
-périphérique de sortie.
+- **Pi** (`audio_link.py`, classe `AudioLink`) : télécharge le flux, retire les métadonnées
+  ICY (titre exposé par le callback `on_metadata`), envoie les octets en trames avec somme de
+  contrôle, et respecte le contrôle de débit annoncé par l'ESP32.
+- **ESP32** (`firmware/`, PlatformIO + [ESP8266Audio](https://github.com/earlephilhower/ESP8266Audio)) :
+  tampon de 24 Ko, démarrage après 12 Ko préremplis, décodage MP3 mono vers l'I2S.
+- Limite : seuls les flux **MP3** sont pris en charge (pas d'AAC).
+
+Protocole (détail dans `firmware/src/main.cpp`) : trame Pi → ESP32
+`0xA5 | type | longueur (2 octets) | charge utile | somme de contrôle`, types AUDIO, START,
+STOP, VOLUME (0-100), PING ; l'ESP32 répond par des lignes texte (`BUF`, `STATE`, `PONG`…).
+
+### Câblage ESP32 → MAX98357A
+
+| MAX98357A | ESP32 (DevKit V1) |
+|---|---|
+| BCLK | GPIO 26 |
+| LRC | GPIO 25 |
+| DIN | GPIO 22 |
+| VIN | VIN (5 V USB) |
+| GND | GND |
+| SD, GAIN | non connectés (mono G+D, gain 9 dB par défaut) |
+
+Haut-parleur sur les bornes `+` / `-` de l'ampli. L'ESP32 est relié au Pi par son câble
+USB (`/dev/ttyUSB0`).
+
+### Firmware
+
+```bash
+cd firmware
+pio run                                   # compilation
+pio run -t upload                         # flash (voir la note ci-dessous)
+```
+
+> Avec pioarduino, l'envoi via `pio run -t upload` peut échouer (bug de barre de progression
+> d'esptool). Contournement : appeler esptool directement avec `--no-progress` et flasher
+> `.pio/build/esp32dev/firmware.factory.bin` à l'adresse `0x0`.
+
+Test rapide depuis le Pi :
+
+```python
+from audio_link import AudioLink
+link = AudioLink(on_metadata=print, on_event=print)
+link.open()
+link.set_volume(50)
+link.play("https://icecast.radiofrance.fr/fip-midfi.mp3")
+```
 
 ## Connexion de l'écran (Bonnet Adafruit)
 
@@ -63,7 +108,8 @@ Réglages propres à ce panneau (dans `config.py`) :
 
 ## Stack logicielle
 
-- **MPD + mpc** — lecture des flux radio, sortie vers l'ESP32-S3 (carte son USB)
+- **MPD + mpc** — lecture actuelle des flux radio dans `radio.py`, à remplacer par `audio_link.py` (ESP32)
+- **pyserial + requests** — relais du flux MP3 vers l'ESP32 (`audio_link.py`)
 - **Flask** — interface web de configuration
 - **SQLite** — stockage alarmes et stations
 - **rpi-rgb-led-matrix** ([fork](https://github.com/laurentChin/RGB-Matrix-Px-xx)) — pilotage du panneau, bindings Python compilés localement, polices bitmap BDF dans `fonts/`
@@ -77,6 +123,8 @@ wakeupclock/
 ├── app.py            ← serveur Flask (interface web)
 ├── alarm.py          ← démon de surveillance des alarmes
 ├── radio.py          ← contrôle MPD
+├── audio_link.py     ← relais du flux MP3 vers l'ESP32 (port série)
+├── firmware/         ← firmware ESP32 (PlatformIO)
 ├── display.py        ← pilotage panneau RGB LED matrix (rgbmatrix)
 ├── gpio_handler.py   ← boutons + encodeur rotatif
 ├── config.py         ← constantes et configuration GPIO/panneau
@@ -150,5 +198,9 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
 - **Broches boutons/encodeur** : les valeurs de `config.py` (5, 6, 13, 16, 26, 12)
   sont utilisées par le mapping `adafruit-hat` (R1, B1, G1, G2, B, R2) et entrent en
   conflit avec la Bonnet. À réattribuer sur des GPIO libres accessibles.
-- **Audio** : firmware USB Audio Class de l'ESP32-S3 et sélection de la sortie ALSA
-  dans MPD à mettre en place.
+- **Audio** : `audio_link.py` et le firmware sont validés sur le banc (FIP en HTTPS, sans
+  coupure). Reste à remplacer MPD par `AudioLink` dans `radio.py`/`app.py`/`alarm.py`,
+  à afficher le titre ICY sur le panneau (FIP n'en a pas renvoyé lors du test) et à
+  gérer les flux AAC éventuels.
+- **Boutons/encodeur** : prévus sur l'ESP32, avec remontée des événements au Pi par le même
+  port série.
