@@ -3,7 +3,7 @@
 import time
 import threading
 from config import SNOOZE_DURATION, RADIO_DURATION
-from database import get_active_alarms_for_now, get_stations
+from database import get_active_alarms_for_now, get_default_station, get_stations
 
 DAYS_FR = ["LU", "MA", "ME", "JE", "VE", "SA", "DI"]
 
@@ -68,6 +68,9 @@ class AlarmDaemon:
         # Récupérer l'URL de la station
         stations = {s["id"]: s for s in get_stations()}
         station  = stations.get(alarm["station_id"])
+        if not station:
+            print(f"[alarm] Station introuvable pour l'alarme {alarm['id']} — station par défaut")
+            station = get_default_station()
 
         if station:
             self.display.set_mode_alarm(station["name"])
@@ -80,7 +83,7 @@ class AlarmDaemon:
             def switch_to_radio():
                 time.sleep(5)
                 if self.radio.is_playing:
-                    self.display.set_mode_radio(station["name"])
+                    self.display.set_mode_radio(station["name"], self.radio.current_title)
             threading.Thread(target=switch_to_radio, daemon=True).start()
         else:
-            print(f"[alarm] Station introuvable pour l'alarme {alarm['id']}")
+            print("[alarm] Aucune station disponible")

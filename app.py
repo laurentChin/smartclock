@@ -15,6 +15,8 @@ app = Flask(__name__)
 # === Initialisation ===
 db.init_db()
 display.start()
+radio.on_title = lambda station, title: display.mode == "radio" and display.set_mode_radio(station, title)
+radio.start()
 
 alarm_daemon = AlarmDaemon(radio, display)
 alarm_daemon.start()
@@ -52,7 +54,7 @@ def api_radio_play():
     if not station:
         return jsonify({"error": "Aucune station disponible"}), 400
     radio.play(station["url"], station["name"])
-    display.set_mode_radio(station["name"])
+    display.set_mode_radio(station["name"], radio.current_title)
     return jsonify({"status": "playing", "station": station["name"]})
 
 

@@ -22,12 +22,12 @@ PIN_ENC_CLK      = 16   # encodeur rotatif — CLK
 PIN_ENC_DT       = 26   # encodeur rotatif — DT
 PIN_ENC_SW       = 12   # encodeur rotatif — bouton poussoir
 
-# === RADIO / MPD ===
-MPD_HOST         = "localhost"
-MPD_PORT         = 6600
+# === RADIO / AUDIO (ESP32 en liaison série USB) ===
+AUDIO_PORT       = "/dev/ttyUSB0"
+AUDIO_BAUD       = 921600
 RADIO_DURATION   = 3600     # durée mode radio 1h (secondes)
 SNOOZE_DURATION  = 600      # durée snooze (secondes)
-DEFAULT_VOLUME   = 65       # volume au démarrage (0-100)
+DEFAULT_VOLUME   = 50       # volume au démarrage (0-100)
 
 # === BASE DE DONNÉES ===
 DATABASE_PATH    = "wakeupclock.db"
@@ -49,6 +49,12 @@ DEFAULT_STATIONS = [
         "name":    "France Inter",
         "url":     "https://icecast.radiofrance.fr/franceinter-midfi.mp3",
         "genre":   "Généraliste",
+        "default": False,
+    },
+    {
+        "name":    "France Info",
+        "url":     "https://icecast.radiofrance.fr/franceinfo-midfi.mp3",
+        "genre":   "Info",
         "default": False,
     },
     {

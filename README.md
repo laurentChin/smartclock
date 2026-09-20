@@ -108,8 +108,7 @@ Réglages propres à ce panneau (dans `config.py`) :
 
 ## Stack logicielle
 
-- **MPD + mpc** — lecture actuelle des flux radio dans `radio.py`, à remplacer par `audio_link.py` (ESP32)
-- **pyserial + requests** — relais du flux MP3 vers l'ESP32 (`audio_link.py`)
+- **pyserial + requests** — relais du flux MP3 vers l'ESP32 (`audio_link.py`) ; titres Radio France via l'API `livemeta` (`livemeta.py`, non officielle, interrogée en fin de morceau/émission)
 - **Flask** — interface web de configuration
 - **SQLite** — stockage alarmes et stations
 - **rpi-rgb-led-matrix** ([fork](https://github.com/laurentChin/RGB-Matrix-Px-xx)) — pilotage du panneau, bindings Python compilés localement, polices bitmap BDF dans `fonts/`
@@ -122,7 +121,8 @@ Réglages propres à ce panneau (dans `config.py`) :
 wakeupclock/
 ├── app.py            ← serveur Flask (interface web)
 ├── alarm.py          ← démon de surveillance des alarmes
-├── radio.py          ← contrôle MPD
+├── radio.py          ← lecture radio (AudioLink) et titres en cours
+├── livemeta.py       ← titre en cours des radios Radio France
 ├── audio_link.py     ← relais du flux MP3 vers l'ESP32 (port série)
 ├── firmware/         ← firmware ESP32 (PlatformIO)
 ├── display.py        ← pilotage panneau RGB LED matrix (rgbmatrix)
@@ -144,7 +144,7 @@ wakeupclock/
 
 ```bash
 # Dépendances système
-sudo apt install mpd mpc python3-pip python3-venv python3-dev cmake cython3
+sudo apt install python3-pip python3-venv python3-dev cmake cython3
 ```
 
 **Désactiver le son embarqué** (il utilise le même sous-système matériel que le panneau
@@ -198,9 +198,8 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
 - **Broches boutons/encodeur** : les valeurs de `config.py` (5, 6, 13, 16, 26, 12)
   sont utilisées par le mapping `adafruit-hat` (R1, B1, G1, G2, B, R2) et entrent en
   conflit avec la Bonnet. À réattribuer sur des GPIO libres accessibles.
-- **Audio** : `audio_link.py` et le firmware sont validés sur le banc (FIP en HTTPS, sans
-  coupure). Reste à remplacer MPD par `AudioLink` dans `radio.py`/`app.py`/`alarm.py`,
-  à afficher le titre ICY sur le panneau (FIP n'en a pas renvoyé lors du test) et à
-  gérer les flux AAC éventuels.
+- **Audio** : `radio.py` utilise `AudioLink` (validé sur banc avec FIP et France Info) ; léger
+  grésillement intermittent restant (pistes : APLL de l'ESP32, gain de l'ampli). Non testés :
+  alarmes, RTL2/NRJ (format à vérifier, l'AAC n'est pas géré), titres ICY de Jazz Radio.
 - **Boutons/encodeur** : prévus sur l'ESP32, avec remontée des événements au Pi par le même
   port série.

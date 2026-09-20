@@ -159,6 +159,10 @@ class RGBMatrixDisplay:
         if self.matrix:
             self.matrix.Clear()
 
+    @property
+    def mode(self):
+        return self._mode
+
     def set_mode_clock(self, next_alarm="", alarm_count=None, alarm_index=0):
         """next_alarm : "HH:MM". Sans alarm_count, un seul pixel est affiché si une alarme existe."""
         self._mode = "clock"

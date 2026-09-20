@@ -1,5 +1,4 @@
 flask>=3.0
-python-mpd2>=3.1
 pyserial>=3.5
 requests>=2.31
 RPi.GPIO>=0.7

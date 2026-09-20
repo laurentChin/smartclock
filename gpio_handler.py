@@ -71,7 +71,7 @@ class GPIOHandler:
         station = self.database.get_default_station()
         if station:
             self.radio.play(station["url"], station["name"])
-            self.display.set_mode_radio(station["name"])
+            self.display.set_mode_radio(station["name"], self.radio.current_title)
         else:
             print("[gpio] Aucune station par défaut configurée")
 
@@ -102,4 +102,4 @@ class GPIOHandler:
             station = self.database.get_default_station()
             if station:
                 self.radio.play(station["url"], station["name"])
-                self.display.set_mode_radio(station["name"])
+                self.display.set_mode_radio(station["name"], self.radio.current_title)
