@@ -2,7 +2,7 @@
 
 import sqlite3
 import json
-from config import DATABASE_PATH, DEFAULT_STATIONS
+from config import DATABASE_PATH, DEFAULT_STATIONS, LOGO_SIZE
 
 
 def get_db():
@@ -37,10 +37,24 @@ def init_db():
         )
     """)
 
-    # Logo 5x5 de la station (JSON) : colonne ajoutée après coup, donc migration des bases existantes
+    # Logo de la station (JSON) : colonne ajoutée après coup, donc migration des bases existantes
     columns = [row["name"] for row in c.execute("PRAGMA table_info(stations)")]
     if "logo" not in columns:
         c.execute("ALTER TABLE stations ADD COLUMN logo TEXT")
+
+    # Logos d'une autre taille (changement de LOGO_SIZE) : on ne peut pas les convertir sans perdre le dessin.
+    # Les stations par défaut retrouvent leur logo, les autres reviennent au logo par défaut.
+    defaults = {s["name"]: s.get("logo") for s in DEFAULT_STATIONS}
+    for row in c.execute("SELECT id, name, logo FROM stations WHERE logo IS NOT NULL").fetchall():
+        try:
+            stored = json.loads(row["logo"])
+            valid = isinstance(stored, list) and len(stored) == LOGO_SIZE and all(len(r) == LOGO_SIZE for r in stored)
+        except ValueError:
+            valid = False
+        if not valid:
+            replacement = defaults.get(row["name"])
+            c.execute("UPDATE stations SET logo = ? WHERE id = ?",
+                      (json.dumps(replacement) if replacement else None, row["id"]))
 
     # Insérer les stations par défaut si la table est vide
     c.execute("SELECT COUNT(*) FROM stations")
@@ -58,7 +72,7 @@ def init_db():
 # === STATIONS ===
 
 def _station(row):
-    """Ligne SQL -> dict, avec le logo décodé (grille 5x5 de "#rrggbb" ou None, ou None sans logo)."""
+    """Ligne SQL -> dict, avec le logo décodé (grille de "#rrggbb" ou None, ou None sans logo)."""
     station = dict(row)
     try:
         station["logo"] = json.loads(station["logo"]) if station.get("logo") else None

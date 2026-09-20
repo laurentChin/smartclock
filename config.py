@@ -28,9 +28,25 @@ FLASK_HOST       = "127.0.0.1"   # Flask n'écoute qu'en local : l'accès se fai
 FLASK_PORT       = 5000
 FLASK_DEBUG      = False
 
+# === LOGO DES STATIONS ===
+# Côté (en pixels) de la grille de couleurs affichée à gauche du nom de la station.
+LOGO_SIZE = 7
+
+# Logo affiché quand une station n'en a pas : un émetteur radio (point central gris, ondes jaunes symétriques).
+# Utilisé par le panneau et par la page Stations.
+DEFAULT_LOGO = [
+    [None, "#ffcc00", None, None, None, "#ffcc00", None],
+    ["#ffcc00", None, None, None, None, None, "#ffcc00"],
+    ["#ffcc00", None, None, None, None, None, "#ffcc00"],
+    ["#ffcc00", None, "#ffcc00", "#8e8e93", "#ffcc00", None, "#ffcc00"],
+    ["#ffcc00", None, None, None, None, None, "#ffcc00"],
+    ["#ffcc00", None, None, None, None, None, "#ffcc00"],
+    [None, "#ffcc00", None, None, None, "#ffcc00", None],
+]
+
 # === STATIONS PAR DÉFAUT ===
-# "logo" : grille 5x5 de couleurs "#rrggbb" (None = LED éteinte), affichée à gauche du nom de la station.
-# Réduits en 5x5 depuis les icônes carrées des stations (radiofrance.fr, franceinfo.fr) avec tools/pixelate_logo.py.
+# "logo" : grille LOGO_SIZE x LOGO_SIZE de couleurs "#rrggbb" (None = LED éteinte), affichée à gauche du nom.
+# Réduits depuis les icônes carrées des stations (radiofrance.fr, franceinfo.fr) avec tools/pixelate_logo.py.
 DEFAULT_STATIONS = [
     {
         "name":    "FIP",
@@ -38,11 +54,13 @@ DEFAULT_STATIONS = [
         "genre":   "Éclectique",
         "default": True,
         "logo":    [
-            ["#e2007a", "#e2007a", "#ffffff", "#ffffff", "#e2007a"],
-            ["#e2007a", "#e2007a", "#ffffff", "#ffffff", "#e2007a"],
-            ["#ffffff", "#e2007a", "#e2007a", "#ffffff", "#ffffff"],
-            ["#ffffff", "#ffffff", "#e2007a", "#e2007a", "#e2007a"],
-            ["#e2007a", "#ffffff", "#ffffff", "#e2007a", "#e2007a"],
+            ["#e2007a", "#e2007a", "#e2007a", "#ffffff", "#ffffff", "#e2007a", "#e2007a"],
+            ["#e2007a", "#e2007a", "#e2007a", "#ffffff", "#ffffff", "#e2007a", "#e2007a"],
+            ["#e2007a", "#e2007a", "#e2007a", "#ffffff", "#ffffff", "#ffffff", "#e2007a"],
+            ["#ffffff", "#ffffff", "#e2007a", "#e2007a", "#e2007a", "#ffffff", "#ffffff"],
+            ["#ffffff", "#ffffff", "#e2007a", "#e2007a", "#e2007a", "#ffffff", "#ffffff"],
+            ["#e2007a", "#ffffff", "#ffffff", "#ffffff", "#e2007a", "#e2007a", "#e2007a"],
+            ["#e2007a", "#ffffff", "#ffffff", "#ffffff", "#e2007a", "#e2007a", "#e2007a"],
         ],
     },
     {
@@ -51,11 +69,13 @@ DEFAULT_STATIONS = [
         "genre":   "Généraliste",
         "default": False,
         "logo":    [
-            ["#e20134", "#e20134", "#ffffff", "#ffffff", "#e20134"],
-            ["#e20134", "#e20134", "#ffffff", "#ffffff", "#e20134"],
-            ["#ffffff", "#e20134", "#e20134", "#ffffff", "#ffffff"],
-            ["#ffffff", "#ffffff", "#e20134", "#e20134", "#e20134"],
-            ["#e20134", "#ffffff", "#ffffff", "#e20134", "#e20134"],
+            ["#e20134", "#e20134", "#e20134", "#ffffff", "#ffffff", "#e20134", "#e20134"],
+            ["#e20134", "#e20134", "#e20134", "#ffffff", "#ffffff", "#e20134", "#e20134"],
+            ["#e20134", "#e20134", "#e20134", "#ffffff", "#ffffff", "#ffffff", "#e20134"],
+            ["#ffffff", "#ffffff", "#e20134", "#e20134", "#e20134", "#ffffff", "#ffffff"],
+            ["#ffffff", "#ffffff", "#e20134", "#e20134", "#e20134", "#ffffff", "#ffffff"],
+            ["#e20134", "#ffffff", "#ffffff", "#ffffff", "#e20134", "#e20134", "#e20134"],
+            ["#e20134", "#ffffff", "#ffffff", "#ffffff", "#e20134", "#e20134", "#e20134"],
         ],
     },
     {
@@ -64,11 +84,13 @@ DEFAULT_STATIONS = [
         "genre":   "Info",
         "default": False,
         "logo":    [
-            ["#666666", "#666666", "#666666", "#666666", "#666666"],
-            ["#666666", "#666666", "#ffc300", "#666666", "#666666"],
-            ["#666666", "#666666", "#666666", "#666666", "#666666"],
-            ["#666666", "#666666", "#ffc300", "#666666", "#666666"],
-            ["#666666", "#666666", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#666666", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#ffc300", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#ffc300", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#666666", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#ffc300", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#ffc300", "#666666", "#666666", "#666666"],
+            ["#666666", "#666666", "#666666", "#666666", "#666666", "#666666", "#666666"],
         ],
     },
 ]

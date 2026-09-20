@@ -146,17 +146,17 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; }
 /* --- logo des stations --- */
 .alarm .station-edit { display: flex; align-items: center; gap: 14px; }
 .logo-thumb {
-  display: grid; grid-template-columns: repeat(5, 7px); gap: 1px; padding: 3px; background: #000;
+  display: grid; grid-template-columns: repeat(var(--n), 5px); gap: 1px; padding: 3px; background: #000;
   border-radius: 4px; flex-shrink: 0;
 }
-.logo-thumb i { width: 7px; height: 7px; display: block; }
+.logo-thumb i { width: 5px; height: 5px; display: block; }
 
 .logo-grid {
-  display: grid; grid-template-columns: repeat(5, 40px); gap: 3px; padding: 6px; width: max-content;
+  display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 3px; padding: 6px; width: min(100%, 300px);
   background: #000; border-radius: 10px; touch-action: none; user-select: none; margin: 0 auto;
 }
 .logo-cell {
-  width: 40px; height: 40px; padding: 0; border: 1px solid #262626; border-radius: 4px;
+  width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid #262626; border-radius: 4px;
   background: #000; cursor: pointer;
 }
 .logo-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

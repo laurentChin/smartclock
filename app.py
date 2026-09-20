@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG
+from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG, DEFAULT_LOGO, LOGO_SIZE
 import access
 import database as db
 from radio import radio
@@ -175,8 +175,8 @@ def _check_stream(url):
 
 
 def _logo_valid(logo):
-    return (isinstance(logo, list) and len(logo) == 5
-            and all(isinstance(row, list) and len(row) == 5
+    return (isinstance(logo, list) and len(logo) == LOGO_SIZE
+            and all(isinstance(row, list) and len(row) == LOGO_SIZE
                     and all(cell is None or (isinstance(cell, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", cell))
                             for cell in row)
                     for row in logo))
@@ -195,14 +195,15 @@ def _station_from_request(current_logo=None):
         return None, "Adresse invalide (http:// ou https://)"
     logo = data.get("logo", current_logo)
     if logo is not None and not _logo_valid(logo):
-        return None, "Logo invalide (grille 5x5 de couleurs #rrggbb)"
+        return None, f"Logo invalide (grille {LOGO_SIZE}x{LOGO_SIZE} de couleurs #rrggbb)"
     return {"name": name[:40], "url": url, "genre": str(data.get("genre", "")).strip()[:30],
             "logo": logo}, None
 
 
 @app.route("/stations")
 def stations_page():
-    return render_template("stations.html", page="stations", stations=db.get_stations())
+    return render_template("stations.html", page="stations", stations=db.get_stations(), default_logo=DEFAULT_LOGO,
+                           logo_size=LOGO_SIZE)
 
 
 @app.route("/api/stations", methods=["GET"])

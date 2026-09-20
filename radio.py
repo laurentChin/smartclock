@@ -60,7 +60,7 @@ class Radio:
     # ------------------------------------------------------------------ #
 
     def play(self, station_url, station_name="", duration=RADIO_DURATION, logo=None):
-        """Joue un flux radio pendant `duration` secondes. `logo` : grille 5x5 de la station (ou None)."""
+        """Joue un flux radio pendant `duration` secondes. `logo` : grille de couleurs de la station (ou None)."""
         with self._lock:
             self.stop()
             self._current_station = station_name

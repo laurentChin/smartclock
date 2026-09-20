@@ -34,9 +34,9 @@
       </label>
 
       <fieldset class="field logo-field">
-        <legend>Logo sur le panneau (5 × 5)</legend>
+        <legend>Logo sur le panneau ({{ logo_size }} × {{ logo_size }})</legend>
 
-        <div id="logo-grid" class="logo-grid" role="group" aria-label="Logo, grille de 5 par 5 pixels"></div>
+        <div id="logo-grid" class="logo-grid" role="group" aria-label="Logo, grille de {{ logo_size }} par {{ logo_size }} pixels"></div>
 
         <div class="logo-tools">
           <label class="color-pick">
@@ -94,6 +94,6 @@
 {% endblock %}
 
 {% block scripts %}
-  <script id="initial-data" type="application/json">{{ {"stations": stations}|tojson }}</script>
+  <script id="initial-data" type="application/json">{{ {"stations": stations, "default_logo": default_logo, "logo_size": logo_size}|tojson }}</script>
   <script src="{{ url_for('static', filename='js/stations.js') }}"></script>
 {% endblock %}

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Réduit un logo en grille 5x5 pour le panneau LED (logo d'une station).
+"""Réduit un logo en grille de pixels pour le panneau LED (logo d'une station, 7x7 par défaut).
 
 Usage : python tools/pixelate_logo.py logo.png [--fit contain|cover|left|right] [--colors 4]
-                                      [--threshold 0.3] [--margin 0.0] [--lighten] [--preview apercu.png]
+                                      [--size 7] [--threshold 0.3] [--margin 0.0] [--lighten] [--preview apercu.png]
 
-Le logo est cadré en carré et ses couleurs sont réduites à quelques teintes franches. Chaque case du
-5x5 prend la couleur de fond, sauf si une autre couleur en couvre au moins --threshold (un tiers par
+Le logo est cadré en carré et ses couleurs sont réduites à quelques teintes franches. Chaque case de la
+grille prend la couleur de fond, sauf si une autre couleur en couvre au moins --threshold (un tiers par
 défaut) : sinon les lettres fines disparaîtraient dans le fond, et une moyenne donnerait des couleurs
 délavées.
-Sortie : la grille en JSON, au format stocké avec la station (5 lignes de 5 "#rrggbb", null = éteint).
+--size        : côté de la grille (doit correspondre à LOGO_SIZE dans config.py)
+Sortie : la grille en JSON, au format stocké avec la station (lignes de "#rrggbb", null = éteint).
 
 --fit contain : tout le logo, avec des bandes éteintes si l'image n'est pas carrée
       cover   : recadre au centre pour remplir le carré
@@ -24,8 +25,8 @@ import sys
 
 from PIL import Image
 
-CELLS = 5
-WORK = 400          # taille de travail : 80 pixels par case
+CELLS = 7           # côté de la grille (modifiable avec --size)
+CELL_PX = 60        # taille de travail : pixels par case
 
 
 def to_square(image, fit):
@@ -50,12 +51,13 @@ def lighten(color, floor=110):
     return tuple(min(255, round(v * factor)) for v in color)
 
 
-def pixelate(path, fit="contain", colors=4, light=False, threshold=0.3, margin=0.0):
+def pixelate(path, fit="contain", colors=4, light=False, threshold=0.3, margin=0.0, size=CELLS):
+    work = size * CELL_PX
     image = Image.open(path).convert("RGBA")
     if margin:
         w, h = image.size
         image = image.crop((round(w * margin), round(h * margin), round(w * (1 - margin)), round(h * (1 - margin))))
-    square = to_square(image, fit).resize((WORK, WORK), Image.LANCZOS)
+    square = to_square(image, fit).resize((work, work), Image.LANCZOS)
     flat = Image.new("RGB", square.size, (0, 0, 0))     # transparent = LED éteinte
     flat.paste(square, mask=square.split()[3])
     palette_image = flat.quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
@@ -63,15 +65,15 @@ def pixelate(path, fit="contain", colors=4, light=False, threshold=0.3, margin=0
     pixels = flat.load()
     # Couleur réelle la plus fréquente de chaque teinte (la palette de la quantification est une moyenne)
     real = {}
-    for index in set(indexes[x, y] for y in range(WORK) for x in range(WORK)):
+    for index in set(indexes[x, y] for y in range(work) for x in range(work)):
         real[index] = collections.Counter(
-            pixels[x, y] for y in range(WORK) for x in range(WORK) if indexes[x, y] == index).most_common(1)[0][0]
-    step = WORK // CELLS
-    background = collections.Counter(indexes[x, y] for y in range(WORK) for x in range(WORK)).most_common(1)[0][0]
+            pixels[x, y] for y in range(work) for x in range(work) if indexes[x, y] == index).most_common(1)[0][0]
+    step = CELL_PX
+    background = collections.Counter(indexes[x, y] for y in range(work) for x in range(work)).most_common(1)[0][0]
     grid = []
-    for row in range(CELLS):
+    for row in range(size):
         line = []
-        for col in range(CELLS):
+        for col in range(size):
             counts = collections.Counter(
                 indexes[x, y]
                 for y in range(row * step, (row + 1) * step)
@@ -91,9 +93,10 @@ def pixelate(path, fit="contain", colors=4, light=False, threshold=0.3, margin=0
     return grid
 
 
-def preview(grid, path, scale=48):
+def preview(grid, path, scale=40):
     """Aperçu façon panneau : fond noir, un carré par LED."""
-    image = Image.new("RGB", (CELLS * scale, CELLS * scale), (0, 0, 0))
+    n = len(grid)
+    image = Image.new("RGB", (n * scale, n * scale), (0, 0, 0))
     for row, line in enumerate(grid):
         for col, cell in enumerate(line):
             if cell:
@@ -111,10 +114,11 @@ def main():
     parser.add_argument("--colors", type=int, default=4)
     parser.add_argument("--threshold", type=float, default=0.3)
     parser.add_argument("--margin", type=float, default=0.0)
+    parser.add_argument("--size", type=int, default=CELLS)
     parser.add_argument("--lighten", action="store_true")
     parser.add_argument("--preview")
     args = parser.parse_args()
-    grid = pixelate(args.image, args.fit, args.colors, args.lighten, args.threshold, args.margin)
+    grid = pixelate(args.image, args.fit, args.colors, args.lighten, args.threshold, args.margin, args.size)
     if args.preview:
         preview(grid, args.preview)
     json.dump(grid, sys.stdout)

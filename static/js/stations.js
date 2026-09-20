@@ -1,17 +1,15 @@
-// stations.js — gestion des stations et éditeur de logo 5x5
+// stations.js — gestion des stations et éditeur de logo
 
-let stations = JSON.parse($("initial-data").textContent).stations;
+const initial = JSON.parse($("initial-data").textContent);
+let stations = initial.stations;
 const list = $("station-list");
 const dialog = $("station-dialog");
 const form = $("station-form");
 let editing = null;     // station en cours de modification, null pour un ajout
 
-const SIZE = 5;
-// Logo affiché par le panneau quand la station n'en a pas (même dessin que display.py)
-const DEFAULT_LOGO = (() => {
-  const g = "#8e8e93", y = "#ffcc00";
-  return [[g, g, g, g, g], [g, g, y, g, g], [g, g, g, g, g], [g, g, y, g, g], [g, g, g, g, g]];
-})();
+const SIZE = initial.logo_size;     // côté de la grille du logo (défini dans config.py)
+// Logo affiché par le panneau quand la station n'en a pas (défini dans config.py)
+const DEFAULT_LOGO = initial.default_logo;
 const QUICK_COLORS = ["#ffffff", "#ff3b30", "#ffcc00", "#34c759", "#0a84ff", "#e2007a"];
 
 function hostOf(url) {
@@ -27,6 +25,7 @@ const hasPixels = (logo) => logo.some((row) => row.some(Boolean));
 function logoThumb(logo) {
   const thumb = document.createElement("span");
   thumb.className = "logo-thumb";
+  thumb.style.setProperty("--n", SIZE);
   thumb.setAttribute("aria-hidden", "true");
   for (const row of logo || DEFAULT_LOGO) {
     for (const color of row) {
@@ -87,6 +86,7 @@ let erasing = false;
 let painting = false;
 let sourceImage = null;     // image envoyée, gardée pour recalculer quand on change les réglages
 const gridEl = $("logo-grid");
+gridEl.style.setProperty("--n", SIZE);
 const cells = [];
 
 for (let y = 0; y < SIZE; y++) {
@@ -189,9 +189,9 @@ $("logo-reset").addEventListener("click", () => {
   drawLogo();
 });
 
-// ---------- réduction d'une image en 5x5 ----------
+// ---------- réduction d'une image en grille ----------
 
-const WORK = 100;            // taille de travail : 20 pixels par case
+const WORK = SIZE * 20;      // taille de travail : 20 pixels par case
 const MERGE_DISTANCE = 70;   // deux teintes plus proches que cela sont regroupées
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -203,7 +203,7 @@ function lighten(color, floor = 110) {
   return color.map((v) => Math.min(255, v * floor / peak));
 }
 
-/** Réduit une image en grille 5x5 : couleurs franches, la couleur de fond sauf si un motif couvre assez la case. */
+/** Réduit une image en grille SIZE x SIZE : couleurs franches, la couleur de fond sauf si un motif couvre assez la case. */
 function reduceImage(image, { fit, threshold, light, zoom = 0 }) {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = WORK;

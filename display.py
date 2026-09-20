@@ -11,7 +11,7 @@ import glyphs
 from config import (
     RGB_MATRIX_ROWS, RGB_MATRIX_COLS, RGB_MATRIX_CHAIN, RGB_MATRIX_PARALLEL,
     RGB_MATRIX_HARDWARE_MAPPING, RGB_MATRIX_GPIO_SLOWDOWN, RGB_MATRIX_RGB_SEQUENCE,
-    RGB_MATRIX_BRIGHTNESS, RGB_MATRIX_BRIGHTNESS_SECONDARY,
+    RGB_MATRIX_BRIGHTNESS, RGB_MATRIX_BRIGHTNESS_SECONDARY, DEFAULT_LOGO, LOGO_SIZE,
 )
 
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
@@ -32,8 +32,6 @@ WEEKEND_DIM = (51, 41, 0)
 WEEKEND_ACTIVE = (255, 204, 0)          # non dessiné dans la maquette : jaune plein
 ALARM_DIM   = (0, 27, 51)
 ALARM_ACTIVE = (0, 95, 178)
-LOGO_GRAY   = (142, 142, 147)
-LOGO_YELLOW = (255, 204, 0)
 VOLUME_LIT  = (52, 199, 89)
 VOLUME_OFF  = (10, 40, 18)
 
@@ -47,7 +45,7 @@ LOGO_POS        = (4, 19)
 VOLUME_POS      = (2, 19)               # colonne de 10 pixels, le bas de la colonne = volume minimal
 VOLUME_PIXELS   = 10
 VOLUME_HIDE_S   = 5.0                   # disparaît 5 s après la dernière commande de volume
-RADIO_TEXT_X    = 10
+RADIO_TEXT_X    = LOGO_POS[0] + LOGO_SIZE + 1     # texte : à droite du logo, avec 1 pixel d'écart
 RADIO_TEXT_WIDTH = 24                   # fenêtre du texte : 6 caractères, assez pour "France", "Europe", "Culture"
 RADIO_BASELINES = (24, 30)              # lettres de 5px sur les lignes 19-23 (comme le logo) et 25-29
 MAX_ALARM_DOTS  = 8
@@ -63,14 +61,6 @@ SCROLL_MIN_IDLE_S = 3.0                 # immobilité minimale entre deux défil
 SCROLL_FRAME_S    = 0.1                 # rafraîchissement pendant le défilement
 IDLE_FRAME_S      = 0.5
 
-# Logo par défaut : maquette (carré gris 5x5, deux points jaunes) ; à remplacer par un logo de station.
-DEFAULT_LOGO = [
-    [LOGO_GRAY] * 5,
-    [LOGO_GRAY, LOGO_GRAY, LOGO_YELLOW, LOGO_GRAY, LOGO_GRAY],
-    [LOGO_GRAY] * 5,
-    [LOGO_GRAY, LOGO_GRAY, LOGO_YELLOW, LOGO_GRAY, LOGO_GRAY],
-    [LOGO_GRAY] * 5,
-]
 
 
 def _to_luminance(value):
@@ -95,8 +85,8 @@ def secondary(color):
 
 
 def _parse_logo(logo):
-    """Grille 5x5 de "#rrggbb" / (r, g, b) / None -> grille de tuples ; None si absente ou invalide."""
-    if not logo or len(logo) != 5 or any(len(row) != 5 for row in logo):
+    """Grille LOGO_SIZE x LOGO_SIZE de "#rrggbb" / (r, g, b) / None -> grille de tuples ; None si absente ou invalide."""
+    if not logo or len(logo) != LOGO_SIZE or any(len(row) != LOGO_SIZE for row in logo):
         return None
     grid = []
     for row in logo:
@@ -133,7 +123,7 @@ class RGBMatrixDisplay:
         self._alarm_index = 0       # rang de l'alarme la plus proche
         self._radio_station = ""
         self._radio_program = ""
-        self._radio_logo = None     # grille 5x5 de couleurs, None = logo par défaut
+        self._radio_logo = None     # grille de couleurs, None = logo par défaut
         self._alarm_label = ""
         self._volume_level = 0      # pixels allumés de l'indicateur de volume
         self._volume_until = 0.0    # instant (monotonic) où l'indicateur disparaît
@@ -303,7 +293,7 @@ class RGBMatrixDisplay:
             for y in range(LOGO_BAND_TOP, self.height):
                 for x in list(range(RADIO_TEXT_X)) + list(range(RADIO_TEXT_X + RADIO_TEXT_WIDTH, self.width)):
                     put(x, y, BLACK)
-        logo = self._radio_logo or DEFAULT_LOGO
+        logo = self._radio_logo or _parse_logo(DEFAULT_LOGO)
         for dy, row in enumerate(logo):
             for dx, color in enumerate(row):
                 if color:
