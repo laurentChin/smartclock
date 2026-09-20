@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Système · Réveil{% endblock %}
+
+{% block content %}
+    <section aria-labelledby="system-title">
+      <div class="section-head">
+        <h2 id="system-title">Système</h2>
+      </div>
+
+      <div id="system-actions" class="cards">
+        <div class="card">
+          <div>
+            <h3>Redémarrer</h3>
+            <p class="meta">Le Pi redémarre et le réveil reprend tout seul, en une minute environ.</p>
+          </div>
+          <button type="button" class="btn" data-action="reboot">Redémarrer</button>
+        </div>
+        <div class="card">
+          <div>
+            <h3>Éteindre</h3>
+            <p class="meta">Le Pi s'éteint. Il faudra le débrancher puis le rebrancher pour le rallumer.</p>
+          </div>
+          <button type="button" class="btn danger" data-action="shutdown">Éteindre</button>
+        </div>
+      </div>
+
+      <p id="system-status" class="status" role="status" hidden></p>
+    </section>
+{% endblock %}
+
+{% block dialogs %}
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <form method="dialog" id="confirm-form">
+      <h2 id="confirm-title" tabindex="-1" autofocus></h2>
+      <p id="confirm-text" class="meta"></p>
+      <div class="actions">
+        <span class="spacer"></span>
+        <button type="button" id="confirm-cancel" class="btn">Annuler</button>
+        <button type="submit" id="confirm-ok" class="btn danger"></button>
+      </div>
+    </form>
+  </dialog>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/system.js') }}"></script>
+{% endblock %}

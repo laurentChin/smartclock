@@ -1,18 +1,7 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>Réveil</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-  <header class="top">
-    <h1>Réveil</h1>
-  </header>
+{% extends "base.html" %}
+{% block title %}Alarmes · Réveil{% endblock %}
 
-  <main>
+{% block content %}
     <section aria-labelledby="alarms-title">
       <div class="section-head">
         <h2 id="alarms-title">Alarmes</h2>
@@ -21,8 +10,9 @@
       <ul id="alarm-list" class="alarm-list"></ul>
       <p id="alarm-empty" class="empty" hidden>Aucune alarme. Ajoutes-en une pour être réveillé par la radio.</p>
     </section>
-  </main>
+{% endblock %}
 
+{% block dialogs %}
   <dialog id="alarm-dialog" aria-labelledby="dialog-title">
     <form id="alarm-form" novalidate>
       <h2 id="dialog-title" tabindex="-1" autofocus>Nouvelle alarme</h2>
@@ -69,10 +59,9 @@
       </div>
     </form>
   </dialog>
+{% endblock %}
 
-  <p id="toast" class="toast" role="status" hidden></p>
-
+{% block scripts %}
   <script id="initial-data" type="application/json">{{ {"alarms": alarms, "stations": stations}|tojson }}</script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+{% endblock %}

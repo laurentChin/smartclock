@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Stations · Réveil{% endblock %}
+
+{% block content %}
+    <section aria-labelledby="stations-title">
+      <div class="section-head">
+        <h2 id="stations-title">Stations</h2>
+        <button type="button" id="add-station" class="btn primary">Ajouter</button>
+      </div>
+      <ul id="station-list" class="alarm-list"></ul>
+      <p class="hint">Seuls les flux MP3 sont lus. Une station est vérifiée à l'ajout.</p>
+    </section>
+{% endblock %}
+
+{% block dialogs %}
+  <dialog id="station-dialog" aria-labelledby="station-dialog-title">
+    <form id="station-form" novalidate>
+      <h2 id="station-dialog-title" tabindex="-1" autofocus>Nouvelle station</h2>
+
+      <label class="field">
+        <span>Nom</span>
+        <input type="text" id="s-name" maxlength="40" required autocomplete="off">
+      </label>
+
+      <label class="field">
+        <span>Adresse du flux</span>
+        <input type="url" id="s-url" required inputmode="url" autocapitalize="off" autocorrect="off"
+               spellcheck="false" placeholder="https://…/flux.mp3">
+      </label>
+
+      <label class="field">
+        <span>Genre <em>(facultatif)</em></span>
+        <input type="text" id="s-genre" maxlength="30" autocomplete="off">
+      </label>
+
+      <label class="check">
+        <input type="checkbox" id="s-default">
+        <span>Station par défaut</span>
+      </label>
+
+      <p id="station-error" class="error" role="alert" hidden></p>
+
+      <div class="actions">
+        <button type="button" id="delete-station" class="btn danger" hidden>Supprimer</button>
+        <span class="spacer"></span>
+        <button type="button" id="cancel-station" class="btn">Annuler</button>
+        <button type="submit" id="save-station" class="btn primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+{% endblock %}
+
+{% block scripts %}
+  <script id="initial-data" type="application/json">{{ {"stations": stations}|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/stations.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}Réveil{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="top">
+    <h1>Réveil</h1>
+    <nav class="tabs" aria-label="Pages">
+      <a href="{{ url_for('index') }}" {% if page == 'alarms' %}aria-current="page"{% endif %}>Alarmes</a>
+      <a href="{{ url_for('stations_page') }}" {% if page == 'stations' %}aria-current="page"{% endif %}>Stations</a>
+      <a href="{{ url_for('system_page') }}" {% if page == 'system' %}aria-current="page"{% endif %}>Système</a>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block dialogs %}{% endblock %}
+
+  <p id="toast" class="toast" role="status" hidden></p>
+
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

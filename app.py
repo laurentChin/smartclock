@@ -1,13 +1,19 @@
 # app.py — serveur Flask + point d'entrée principal
 
 from flask import Flask, render_template, request, jsonify
+import subprocess
 import threading
+import time
+from urllib.parse import urlparse
+
+import requests
 
 from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG
 import database as db
 from radio import radio
 from display import display
 from alarm import AlarmDaemon, DAYS_FR
+from audio_link import USER_AGENT
 from controls import ControlsHandler
 
 app = Flask(__name__)
@@ -36,6 +42,7 @@ display.set_mode_clock()
 def index():
     return render_template(
         "index.html",
+        page="alarms",
         stations=db.get_stations(),
         alarms=db.get_alarms(),
         volume=radio.volume,
@@ -142,6 +149,37 @@ def api_toggle_alarm(alarm_id):
 
 # --- Stations ---
 
+def _check_stream(url):
+    """Vérifie que le flux répond en MP3 (seul format lu par l'ESP32). Retourne un message d'erreur ou None."""
+    try:
+        with requests.get(url, stream=True, timeout=(5, 8), headers={"User-Agent": USER_AGENT}) as resp:
+            resp.raise_for_status()
+            content_type = resp.headers.get("Content-Type", "").lower()
+    except requests.RequestException:
+        return "Flux injoignable : vérifie l'adresse"
+    if "mpeg" not in content_type and "mp3" not in content_type:
+        return "Format non pris en charge : seuls les flux MP3 sont lus"
+    return None
+
+
+def _station_from_request():
+    """Lit et valide le corps JSON d'une station. Retourne (valeurs, None) ou (None, message d'erreur)."""
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip()
+    url = str(data.get("url", "")).strip()
+    parsed = urlparse(url)
+    if not name:
+        return None, "Donne un nom à la station"
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None, "Adresse invalide (http:// ou https://)"
+    return {"name": name[:40], "url": url, "genre": str(data.get("genre", "")).strip()[:30]}, None
+
+
+@app.route("/stations")
+def stations_page():
+    return render_template("stations.html", page="stations", stations=db.get_stations())
+
+
 @app.route("/api/stations", methods=["GET"])
 def api_get_stations():
     return jsonify(db.get_stations())
@@ -149,19 +187,45 @@ def api_get_stations():
 
 @app.route("/api/stations", methods=["POST"])
 def api_add_station():
-    data = request.json
-    db.add_station(data["name"], data["url"], data.get("genre", ""))
+    values, error = _station_from_request()
+    if values:
+        error = _check_stream(values["url"])
+    if error:
+        return jsonify({"error": error}), 400
+    db.add_station(**values)
     return jsonify({"status": "ok"}), 201
+
+
+@app.route("/api/stations/<int:station_id>", methods=["PUT"])
+def api_update_station(station_id):
+    current = db.get_station(station_id)
+    if not current:
+        return jsonify({"error": "Station introuvable"}), 404
+    values, error = _station_from_request()
+    if values and values["url"] != current["url"]:      # le flux n'est revérifié que si l'adresse change
+        error = _check_stream(values["url"])
+    if error:
+        return jsonify({"error": error}), 400
+    db.update_station(station_id, **values)
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/stations/<int:station_id>", methods=["DELETE"])
 def api_delete_station(station_id):
+    station = db.get_station(station_id)
+    if not station:
+        return jsonify({"error": "Station introuvable"}), 404
+    if station["is_default"]:
+        return jsonify({"error": "Choisis d'abord une autre station par défaut"}), 409
     db.delete_station(station_id)
+    alarm_daemon.refresh_display()
     return jsonify({"status": "ok"})
 
 
 @app.route("/api/stations/<int:station_id>/default", methods=["POST"])
 def api_set_default_station(station_id):
+    if not db.get_station(station_id):
+        return jsonify({"error": "Station introuvable"}), 404
     db.set_default_station(station_id)
     return jsonify({"status": "ok"})
 
@@ -178,6 +242,39 @@ def api_snooze():
 def api_dismiss():
     alarm_daemon.dismiss()
     return jsonify({"status": "dismissed"})
+
+
+# --- Système ---
+
+SYSTEM_COMMANDS = {"reboot": ["systemctl", "reboot"], "shutdown": ["systemctl", "poweroff"]}
+
+
+def _run_system_command(command):
+    time.sleep(1.5)     # laisse partir la réponse HTTP
+    try:
+        subprocess.run(command, check=True, timeout=30)
+    except Exception as e:
+        print(f"[system] Échec de {' '.join(command)} : {e}")
+        display.set_mode_clock()    # l'écran avait été éteint pour rien
+
+
+@app.route("/system")
+def system_page():
+    return render_template("system.html", page="system")
+
+
+@app.route("/api/system/<action>", methods=["POST"])
+def api_system(action):
+    command = SYSTEM_COMMANDS.get(action)
+    if not command:
+        return jsonify({"error": "Action inconnue"}), 404
+    if not request.is_json:     # refuse les envois de formulaire venus d'une autre page
+        return jsonify({"error": "Requête JSON attendue"}), 400
+    print(f"[system] {action}")
+    radio.stop()
+    display.set_mode_off()
+    threading.Thread(target=_run_system_command, args=(command,), daemon=True).start()
+    return jsonify({"status": action})
 
 
 # ------------------------------------------------------------------ #

@@ -106,13 +106,28 @@ link.play("https://icecast.radiofrance.fr/fip-midfi.mp3")
 
 ## Interface web
 
-Le serveur Flask (`app.py`) démarre avec le Pi (service systemd, voir Installation) et sert la
-page de gestion sur `http://<adresse-du-pi>:5000`.
+Le serveur Flask (`app.py`) démarre avec le Pi (service systemd, voir Installation) et sert
+les pages sur `http://<adresse-du-pi>:5000`. Une navigation en haut relie les trois pages
+(`templates/base.html`), pensées pour le téléphone, en thèmes clair et sombre automatiques.
 
-**Alarmes** (`templates/index.html`, `static/`) : liste avec heure, jours, station et nom ;
+**Alarmes** (`/`, `templates/index.html`) : liste avec heure, jours, station et nom ;
 interrupteur activer/désactiver ; ajout et modification dans un formulaire (heure, jours avec
 raccourcis Semaine / Week-end / Tous les jours, station, nom facultatif) ; suppression depuis
-la modification. Page pensée pour le téléphone, thèmes clair et sombre automatiques.
+la modification.
+
+**Stations** (`/stations`) : liste avec genre, serveur, nombre d'alarmes qui l'utilisent et badge
+« Par défaut » ; ajout, modification (nom, adresse, genre, station par défaut) et suppression.
+À l'ajout ou au changement d'adresse, le serveur vérifie que le flux répond en MP3 (seul format
+lu par l'ESP32) et refuse une page web ou un flux injoignable. La station par défaut ne peut pas
+être supprimée (en choisir une autre d'abord) ; à la suppression d'une station, ses alarmes
+passent sur la station par défaut.
+
+**Système** (`/system`) : redémarrer ou éteindre le Pi, après confirmation. La radio s'arrête
+et l'écran s'éteint avant l'action ; après un redémarrage, la page attend le retour du serveur.
+Un Pi éteint doit être débranché puis rebranché pour repartir.
+
+> **Pas d'authentification** : toute personne qui accède au réseau local peut modifier les
+> alarmes et les stations, et redémarrer ou éteindre le Pi. À réserver à un réseau de confiance.
 
 Le panneau LED suit les alarmes : un point par alarme active, la prochaine en couleur vive, et son
 heure (mis à jour à chaque changement et toutes les 15 s).
@@ -126,10 +141,14 @@ API (JSON) :
 | `POST /api/alarms/<id>/toggle` | activer ou désactiver (`{"enabled": true}`) |
 | `POST /api/alarm/snooze`, `/api/alarm/dismiss` | snooze / arrêt de l'alarme en cours |
 | `POST /api/radio/play`, `/stop`, `/volume` | radio (`{"station_id": 1}`, `{"volume": 40}`) |
-| `GET/POST /api/stations`, `DELETE /api/stations/<id>`, `POST /api/stations/<id>/default` | stations |
+| `GET/POST /api/stations` | lister / créer une station (`name`, `url`, `genre`) |
+| `PUT/DELETE /api/stations/<id>` | modifier / supprimer (409 pour la station par défaut) |
+| `POST /api/stations/<id>/default` | définir la station par défaut |
+| `POST /api/system/reboot`, `/api/system/shutdown` | redémarrer / éteindre le Pi (corps JSON `{}`) |
 
 Une alarme demande une heure `HH:MM`, au moins un jour (`LU`…`DI`) et une station existante ;
-sinon l'API répond 400 avec un message.
+sinon l'API répond 400 avec un message. Une station demande un nom, une adresse `http(s)://`
+et un flux MP3 joignable.
 
 ## Connexion de l'écran (Bonnet Adafruit)
 
@@ -182,11 +201,10 @@ wakeupclock/
 ├── wakeupclock.db    ← base SQLite (générée au premier lancement)
 ├── requirements.txt  ← dépendances Python
 ├── wakeupclock.service ← unit systemd
-├── templates/
-│   └── index.html    ← interface web
+├── templates/        ← pages : base, alarmes (index), stations, système
 └── static/
     ├── css/style.css
-    └── js/app.js
+    └── js/           ← common.js (partagé), app.js (alarmes), stations.js, system.js
 ```
 
 ## Installation
@@ -250,6 +268,6 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
   grésillement intermittent restant (pistes : APLL de l'ESP32, gain de l'ampli). Alarme (déclenchement,
   snooze, arrêt) validée sur banc. Non testés : RTL2/NRJ (format à vérifier, l'AAC n'est pas géré), titres ICY de Jazz Radio.
 - **Boutons** : firmware, logique et lancement complet de `app.py` validés sur banc.
-- **Interface web** : seule la gestion des alarmes est faite. Restent la radio (lecture, volume),
-  les stations et l'alarme en cours (snooze / arrêt), dont les routes API existent déjà.
+- **Interface web** : alarmes, stations et système faits. Restent la radio (lecture, volume, station
+  en cours) et l'alarme en cours (snooze / arrêt) dans la page, dont les routes API existent déjà.
   Le serveur est le serveur de développement de Flask, suffisant sur un réseau domestique.
