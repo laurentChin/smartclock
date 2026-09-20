@@ -1,0 +1,33 @@
+# Caddyfile — HTTPS local pour l'interface web (à copier dans /etc/caddy/Caddyfile)
+#
+# Caddy crée sa propre autorité de certification locale ("tls internal") : son certificat racine
+# est à installer une fois sur chaque appareil pour supprimer l'avertissement du navigateur.
+# Le nom smartclock.local est annoncé par le Pi lui-même (mDNS/avahi), il suit donc son adresse IP.
+
+{
+	# Nom affiché du certificat racine dans le Trousseau / les réglages du téléphone
+	pki {
+		ca local {
+			name "SmartClock"
+			root_cn "SmartClock"
+			intermediate_cn "SmartClock Intermediate"
+		}
+	}
+}
+
+smartclock.local {
+	tls internal
+	reverse_proxy 127.0.0.1:5000
+}
+
+# En HTTP simple : le certificat racine à télécharger (par exemple depuis un iPhone), le reste
+# est redirigé vers HTTPS.
+http://smartclock.local {
+	handle /root.crt {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		file_server
+	}
+	handle {
+		redir https://smartclock.local{uri} permanent
+	}
+}

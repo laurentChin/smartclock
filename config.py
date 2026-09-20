@@ -24,7 +24,7 @@ DEFAULT_VOLUME   = 50       # volume au démarrage (0-100)
 DATABASE_PATH    = "wakeupclock.db"
 
 # === SERVEUR WEB ===
-FLASK_HOST       = "0.0.0.0"
+FLASK_HOST       = "127.0.0.1"   # Flask n'écoute qu'en local : l'accès se fait en HTTPS par Caddy (deploy/Caddyfile)
 FLASK_PORT       = 5000
 FLASK_DEBUG      = False
 

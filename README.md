@@ -107,7 +107,7 @@ link.play("https://icecast.radiofrance.fr/fip-midfi.mp3")
 ## Interface web
 
 Le serveur Flask (`app.py`) démarre avec le Pi (service systemd, voir Installation) et sert
-les pages sur `http://<adresse-du-pi>:5000`. Une navigation en haut relie les trois pages
+les pages sur **`https://smartclock.local`** (voir « Accès HTTPS »). Une navigation en haut relie les trois pages
 (`templates/base.html`), pensées pour le téléphone, en thèmes clair et sombre automatiques.
 
 **Alarmes** (`/`, `templates/index.html`) : liste avec heure, jours, station et nom ;
@@ -149,6 +149,28 @@ API (JSON) :
 Une alarme demande une heure `HH:MM`, au moins un jour (`LU`…`DI`) et une station existante ;
 sinon l'API répond 400 avec un message. Une station demande un nom, une adresse `http(s)://`
 et un flux MP3 joignable.
+
+## Accès HTTPS (`smartclock.local`)
+
+Le Pi s'appelle `smartclock` et annonce `smartclock.local` sur le réseau local (mDNS/avahi,
+installé par défaut) : l'adresse reste valable si son IP change. Flask n'écoute qu'en local
+(`FLASK_HOST = "127.0.0.1"`) ; [Caddy](https://caddyserver.com) reçoit les connexions et les
+transmet à Flask (`deploy/Caddyfile`). `http://smartclock.local` redirige vers HTTPS.
+
+Un nom en `.local` ne peut pas avoir de certificat public : Caddy crée sa propre autorité de
+certification (nommée « SmartClock ») et signe le certificat du site, renouvelé automatiquement.
+Le certificat racine doit être installé **une fois sur chaque appareil**, sinon le navigateur
+affiche un avertissement :
+
+- **Récupérer le certificat** : `http://smartclock.local/root.crt` (servi en HTTP simple).
+- **Mac** : ouvrir le fichier (Trousseau d'accès), double-clic sur « SmartClock », Approbation →
+  « Toujours approuver ». Firefox utilise son propre magasin de certificats.
+- **iPhone** : ouvrir `http://smartclock.local/root.crt` dans Safari, autoriser, installer le profil
+  (Réglages), puis Réglages → Général → Informations → Réglages des certificats de confiance →
+  activer « SmartClock ».
+
+Si le dossier de données de Caddy (`/var/lib/caddy`) est supprimé, l'autorité est recréée avec une
+nouvelle clé : le certificat racine est alors à réinstaller sur les appareils.
 
 ## Connexion de l'écran (Bonnet Adafruit)
 
@@ -201,6 +223,7 @@ wakeupclock/
 ├── wakeupclock.db    ← base SQLite (générée au premier lancement)
 ├── requirements.txt  ← dépendances Python
 ├── wakeupclock.service ← unit systemd
+├── deploy/Caddyfile  ← HTTPS local (Caddy)
 ├── templates/        ← pages : base, alarmes (index), stations, système
 └── static/
     ├── css/style.css
@@ -211,7 +234,7 @@ wakeupclock/
 
 ```bash
 # Dépendances système
-sudo apt install python3-pip python3-venv python3-dev cmake cython3
+sudo apt install python3-pip python3-venv python3-dev cmake cython3 caddy
 ```
 
 **Désactiver le son embarqué** (il utilise le même sous-système matériel que le panneau
@@ -235,6 +258,10 @@ pip install ./RGB-Matrix-Px-xx/example/Rasberry-Pi
 
 # Lancer en développement (accès GPIO/DMA : root requis)
 sudo venv/bin/python app.py
+
+# Nom et HTTPS : hostname smartclock (=> smartclock.local) et Caddy (voir « Accès HTTPS »)
+sudo hostnamectl set-hostname smartclock
+sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
 
 # Installer le service systemd (adapter User/WorkingDirectory/ExecStart de wakeupclock.service
 # à l'emplacement du projet et du venv ; le service tourne en root pour piloter le panneau)
