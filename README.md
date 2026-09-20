@@ -11,8 +11,15 @@ Radio-réveil connecté basé sur Raspberry Pi, avec afficheur RGB LED matrix
 | Écran | RGB LED Matrix HUB75 64×32, pas 2,5mm (Waveshare) | Nappe HUB75 → Bonnet |
 | Adaptateur écran | Adafruit RGB Matrix Bonnet (réf. 3211) | Header 40 broches du Pi |
 | Alimentation écran | Mean Well LRS-50-5 ou LRS-75-5 (5V) | Secteur → bornier de la Bonnet |
+| Alimentation du Pi | Bloc 5,1 V / 3 A, câble court et épais | micro-USB ; alimente aussi l'ESP32, l'ampli et le haut-parleur |
 | Audio | ESP32-WROOM-32 (Elegoo DevKit V1) + ampli I2S MAX98357A + haut-parleur | USB série (Pi ↔ ESP32), I2S (ESP32 ↔ ampli) |
 | Boutons | 3 poussoirs (principal, volume +, volume −) | GPIO 32 / 33 / 27 de l'ESP32, vers GND |
+
+> **Alimentation du Pi** : le Pi alimente aussi l'ESP32, l'ampli et le haut-parleur (par USB).
+> Un bloc trop faible fait chuter le 5 V quand le panneau et le son tournent, ce qui provoque un
+> grésillement dans le haut-parleur (mesuré : environ 5 sous-tensions par 90 s avec l'ancien bloc,
+> aucune avec un 5 V / 3 A). Vérification : `vcgencmd get_throttled` doit renvoyer `0x0` et
+> `sudo dmesg | grep -i undervoltage` ne rien afficher.
 
 > Un Raspberry Pi Zero 2W a aussi été utilisé pendant la mise au point, mais
 > l'exemplaire testé présentait un défaut d'adressage (lignes du panneau
@@ -254,6 +261,18 @@ echo "blacklist snd_bcm2835" | sudo tee /etc/modprobe.d/blacklist-rgb-matrix.con
 sudo reboot
 ```
 
+**Alléger le Pi** (HDMI, Bluetooth et bureau sont inutiles : on l'utilise par SSH et par l'interface
+web ; cela libère environ 100 Mo de mémoire et réduit la consommation), puis redémarrer :
+
+```bash
+sudo sed -i 's/^dtoverlay=vc4-kms-v3d$/dtoverlay=vc4-kms-v3d,nohdmi/' /boot/firmware/config.txt
+echo "dtoverlay=disable-bt" | sudo tee -a /boot/firmware/config.txt
+sudo systemctl disable bluetooth
+sudo systemctl set-default multi-user.target     # démarrage en mode texte, sans bureau
+sudo systemctl disable lightdm
+sudo reboot
+```
+
 ```bash
 # Environnement Python
 python3 -m venv venv
@@ -299,8 +318,8 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
 
 ## Points ouverts
 
-- **Audio** : `radio.py` utilise `AudioLink` (validé sur banc avec FIP et France Info) ; léger
-  grésillement intermittent restant (pistes : APLL de l'ESP32, gain de l'ampli). Alarme (déclenchement,
+- **Audio** : `radio.py` utilise `AudioLink` (validé sur banc avec FIP, France Inter et France Info). Le
+  léger grésillement observé venait de l'alimentation du Pi (voir « Matériel »). Alarme (déclenchement,
   snooze, arrêt) validée sur banc. Flux MP3 uniquement (l'AAC n'est pas géré) ; les flux Radio France
   n'envoient pas de titre ICY, il vient de `livemeta`.
 - **Boutons** : firmware, logique et lancement complet de `app.py` validés sur banc.
