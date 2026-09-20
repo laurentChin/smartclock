@@ -104,6 +104,33 @@ link.set_volume(50)
 link.play("https://icecast.radiofrance.fr/fip-midfi.mp3")
 ```
 
+## Interface web
+
+Le serveur Flask (`app.py`) démarre avec le Pi (service systemd, voir Installation) et sert la
+page de gestion sur `http://<adresse-du-pi>:5000`.
+
+**Alarmes** (`templates/index.html`, `static/`) : liste avec heure, jours, station et nom ;
+interrupteur activer/désactiver ; ajout et modification dans un formulaire (heure, jours avec
+raccourcis Semaine / Week-end / Tous les jours, station, nom facultatif) ; suppression depuis
+la modification. Page pensée pour le téléphone, thèmes clair et sombre automatiques.
+
+Le panneau LED suit les alarmes : un point par alarme active, la prochaine en couleur vive, et son
+heure (mis à jour à chaque changement et toutes les 15 s).
+
+API (JSON) :
+
+| Route | Rôle |
+|---|---|
+| `GET/POST /api/alarms` | lister / créer une alarme |
+| `PUT/DELETE /api/alarms/<id>` | modifier / supprimer |
+| `POST /api/alarms/<id>/toggle` | activer ou désactiver (`{"enabled": true}`) |
+| `POST /api/alarm/snooze`, `/api/alarm/dismiss` | snooze / arrêt de l'alarme en cours |
+| `POST /api/radio/play`, `/stop`, `/volume` | radio (`{"station_id": 1}`, `{"volume": 40}`) |
+| `GET/POST /api/stations`, `DELETE /api/stations/<id>`, `POST /api/stations/<id>/default` | stations |
+
+Une alarme demande une heure `HH:MM`, au moins un jour (`LU`…`DI`) et une station existante ;
+sinon l'API répond 400 avec un message.
+
 ## Connexion de l'écran (Bonnet Adafruit)
 
 Aucun fil volant : la Bonnet s'emboîte sur le header 40 broches du Pi et intègre un
@@ -222,5 +249,7 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
 - **Audio** : `radio.py` utilise `AudioLink` (validé sur banc avec FIP et France Info) ; léger
   grésillement intermittent restant (pistes : APLL de l'ESP32, gain de l'ampli). Alarme (déclenchement,
   snooze, arrêt) validée sur banc. Non testés : RTL2/NRJ (format à vérifier, l'AAC n'est pas géré), titres ICY de Jazz Radio.
-- **Boutons** : firmware et logique validés (événements, appui long, répétition du volume).
-  Reste à essayer l'ensemble avec `app.py` lancé.
+- **Boutons** : firmware, logique et lancement complet de `app.py` validés sur banc.
+- **Interface web** : seule la gestion des alarmes est faite. Restent la radio (lecture, volume),
+  les stations et l'alarme en cours (snooze / arrêt), dont les routes API existent déjà.
+  Le serveur est le serveur de développement de Flask, suffisant sur un réseau domestique.
