@@ -34,6 +34,8 @@ ALARM_DIM   = (0, 27, 51)
 ALARM_ACTIVE = (0, 95, 178)
 LOGO_GRAY   = (142, 142, 147)
 LOGO_YELLOW = (255, 204, 0)
+VOLUME_LIT  = (52, 199, 89)
+VOLUME_OFF  = (10, 40, 18)
 
 # --- Positions (x, y) ---
 TIME_POS        = (4, 3)
@@ -42,6 +44,9 @@ DATE_POS        = (45, 3)
 ALARM_COUNT_POS = (45, 11)
 ALARM_TIME_POS  = (45, 13)
 LOGO_POS        = (4, 19)
+VOLUME_POS      = (2, 19)               # colonne de 10 pixels, le bas de la colonne = volume minimal
+VOLUME_PIXELS   = 10
+VOLUME_HIDE_S   = 5.0                   # disparaît 5 s après la dernière commande de volume
 RADIO_TEXT_X    = 10
 RADIO_TEXT_WIDTH = 24                   # fenêtre du texte : 6 caractères, assez pour "France", "Europe", "Culture"
 RADIO_BASELINES = (24, 30)              # lettres de 5px sur les lignes 19-23 (comme le logo) et 25-29
@@ -112,6 +117,8 @@ class RGBMatrixDisplay:
         self._radio_program = ""
         self._radio_logo = None     # 5x5 de couleurs, None = logo par défaut
         self._alarm_label = ""
+        self._volume_level = 0      # pixels allumés de l'indicateur de volume
+        self._volume_until = 0.0    # instant (monotonic) où l'indicateur disparaît
         self._scroll_t0 = time.monotonic()
 
         if MATRIX_AVAILABLE:
@@ -162,6 +169,11 @@ class RGBMatrixDisplay:
     @property
     def mode(self):
         return self._mode
+
+    def show_volume(self, percent):
+        """Affiche l'indicateur de volume ; un pixel de plus tous les 10 % (donc tous les deux pas de 5 %)."""
+        self._volume_level = max(0, min(VOLUME_PIXELS, int(percent) // 10))
+        self._volume_until = time.monotonic() + VOLUME_HIDE_S
 
     def set_mode_clock(self, next_alarm="", alarm_count=None, alarm_index=0):
         """next_alarm : "HH:MM". Sans alarm_count, un seul pixel est affiché si une alarme existe."""
@@ -274,6 +286,15 @@ class RGBMatrixDisplay:
                     put(LOGO_POS[0] + dx, LOGO_POS[1] + dy, color)
         return moving
 
+    def _draw_volume(self, put, put2):
+        """Colonne de 10 pixels remplie depuis le bas ; les pixels éteints restent visibles (secondaires)."""
+        for i in range(VOLUME_PIXELS):
+            y = VOLUME_POS[1] + VOLUME_PIXELS - 1 - i
+            if i < self._volume_level:
+                put(VOLUME_POS[0], y, VOLUME_LIT)
+            else:
+                put2(VOLUME_POS[0], y, VOLUME_OFF)
+
     def _draw_screen(self):
         now = time.localtime()
         hh, mm = time.strftime("%H", now), time.strftime("%M", now)
@@ -298,6 +319,9 @@ class RGBMatrixDisplay:
         glyphs.draw_small(put2, DATE_POS[0], DATE_POS[1], day, month, WHITE, sep="bar", sep_color=GRAY_50)
         self._draw_next_alarm(put, put2)
         scrolling = self._draw_radio(canvas, put, station, program) if radio_visible else False
+        if time.monotonic() < self._volume_until:
+            self._draw_volume(put, put2)
+            scrolling = True    # rafraîchissement rapide tant que l'indicateur est visible
 
         with self._lock:
             self.canvas = self.matrix.SwapOnVSync(canvas)

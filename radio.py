@@ -21,6 +21,8 @@ class Radio:
         self.on_title = None
         # on_input(ligne) : boutons et encodeur de l'ESP32 ("BTN main", "BTN vol_up"…)
         self.on_input = None
+        # on_volume(pourcentage) : appelé à chaque changement de volume
+        self.on_volume = None
 
     # ------------------------------------------------------------------ #
 
@@ -104,6 +106,8 @@ class Radio:
             if self._link:
                 self._link.set_volume(vol)
         print(f"[radio] Volume : {vol}%")
+        if self.on_volume:
+            self.on_volume(vol)
 
     def volume_up(self, step=5):
         self.set_volume(self._volume + step)

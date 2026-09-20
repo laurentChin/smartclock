@@ -16,6 +16,7 @@ app = Flask(__name__)
 db.init_db()
 display.start()
 radio.on_title = lambda station, title: display.mode == "radio" and display.set_mode_radio(station, title)
+radio.on_volume = display.show_volume
 radio.start()
 
 alarm_daemon = AlarmDaemon(radio, display)
