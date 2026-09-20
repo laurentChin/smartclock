@@ -71,6 +71,11 @@ Comportement (décidé côté Pi dans `controls.py`) :
 - **Bouton principal, appui long (1 s)** : arrêt définitif (radio, alarme, snooze en attente).
 - **Volume ± ** : pas de 5 %, répété toutes les 150 ms si le bouton est maintenu.
 
+Indicateur de volume (`display.py`, maquette Figma) : colonne de 10 pixels à gauche du logo
+(x=2, lignes 19-28), remplie depuis le bas, un pixel par tranche de 10 % (donc mise à jour
+tous les deux pas de 5 %). Elle s'affiche à chaque changement de volume (boutons ou interface
+web), quel que soit le mode d'affichage, et disparaît 5 s après la dernière commande.
+
 Les appuis sont envoyés par le même port série (`BTN main`, `BTN main_long`, `BTN vol_up`,
 `BTN vol_down`).
 
