@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import requests
 
 from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG
+import access
 import database as db
 from radio import radio
 from display import display
@@ -17,6 +18,16 @@ from audio_link import USER_AGENT
 from controls import ControlsHandler
 
 app = Flask(__name__)
+
+@app.before_request
+def only_local_network():
+    """Refuse tout client hors du réseau local. Flask n'écoute qu'en local : seul Caddy s'y connecte, et il
+    écrase l'en-tête X-Forwarded-For par l'adresse réelle du client."""
+    client = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[-1].strip()
+    if not access.is_local(client):
+        print(f"[access] refusé : {client}")
+        return jsonify({"error": "Accès réservé au réseau local"}), 403
+
 
 # === Initialisation ===
 db.init_db()

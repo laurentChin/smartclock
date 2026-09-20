@@ -126,11 +126,8 @@ passent sur la station par défaut.
 et l'écran s'éteint avant l'action ; après un redémarrage, la page attend le retour du serveur.
 Un Pi éteint doit être débranché puis rebranché pour repartir.
 
-> **Pas d'authentification** : toute personne qui accède au réseau local peut modifier les
-> alarmes et les stations, et redémarrer ou éteindre le Pi. À réserver à un réseau de confiance.
-
-Le panneau LED suit les alarmes : un point par alarme active, la prochaine en couleur vive, et son
-heure (mis à jour à chaque changement et toutes les 15 s).
+> **Pas de mot de passe** : la protection repose sur le réseau (voir « Accès réservé au réseau
+> local ») ; tout appareil connecté au même réseau peut modifier les alarmes et éteindre le Pi.
 
 API (JSON) :
 
@@ -168,6 +165,16 @@ affiche un avertissement :
 - **iPhone** : ouvrir `http://smartclock.local/root.crt` dans Safari, autoriser, installer le profil
   (Réglages), puis Réglages → Général → Informations → Réglages des certificats de confiance →
   activer « SmartClock ».
+
+### Accès réservé au réseau local
+
+Plutôt qu'un code, l'interface n'accepte que les appareils **du même réseau que le Pi** (`access.py`) :
+le sous-réseau de l'une de ses interfaces (IPv4 comme IPv6, adresses publiques comprises : le préfixe
+est relu chaque minute car un fournisseur peut le renuméroter), le lien local et le Pi lui-même.
+Internet, un autre sous-réseau et le réseau invité de la box reçoivent une erreur 403. Flask utilise
+l'adresse réelle du client transmise par Caddy (`X-Forwarded-For`, que Caddy écrase) ; ne pas exposer
+le port 5000 autrement qu'en local. Le certificat racine (`/root.crt`, public) reste téléchargeable
+en HTTP simple sur le port 80.
 
 Si le dossier de données de Caddy (`/var/lib/caddy`) est supprimé, l'autorité est recréée avec une
 nouvelle clé : le certificat racine est alors à réinstaller sur les appareils.
@@ -217,6 +224,7 @@ wakeupclock/
 ├── firmware/         ← firmware ESP32 (PlatformIO)
 ├── display.py        ← pilotage panneau RGB LED matrix (rgbmatrix)
 ├── controls.py       ← actions des boutons (reçus de l'ESP32)
+├── access.py         ← accès limité au réseau local
 ├── config.py         ← constantes et configuration GPIO/panneau
 ├── database.py       ← accès SQLite (alarmes, stations)
 ├── fonts/            ← polices bitmap BDF pour le panneau
