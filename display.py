@@ -12,6 +12,7 @@ from config import (
     RGB_MATRIX_ROWS, RGB_MATRIX_COLS, RGB_MATRIX_CHAIN, RGB_MATRIX_PARALLEL,
     RGB_MATRIX_HARDWARE_MAPPING, RGB_MATRIX_GPIO_SLOWDOWN, RGB_MATRIX_RGB_SEQUENCE,
     RGB_MATRIX_BRIGHTNESS, RGB_MATRIX_BRIGHTNESS_SECONDARY, DEFAULT_LOGO, LOGO_SIZE,
+    TIME_ANIMATION, TIME_ANIM_S, TIME_ANIM_STAGGER_S,
 )
 
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
@@ -67,6 +68,7 @@ SCROLL_HOLD_S     = 1.5                 # pause sur la fin du texte
 SCROLL_MIN_IDLE_S = 3.0                 # immobilité minimale entre deux défilements
 SCROLL_FRAME_S    = 0.1                 # rafraîchissement pendant le défilement
 IDLE_FRAME_S      = 0.5
+ANIM_FRAME_S      = 0.04                # 25 images par seconde pendant la bascule d'un chiffre
 
 
 
@@ -132,6 +134,12 @@ class RGBMatrixDisplay:
         self._radio_program = ""
         self._radio_logo = None     # grille de couleurs, None = logo par défaut
         self._alarm_label = ""
+        self._time_style = TIME_ANIMATION       # None ou clé de glyphs.ANIM_PIVOTS
+        self._anim_s = TIME_ANIM_S
+        self._time_override = None              # "HHMM" imposé (essais d'animation), None = heure réelle
+        self._shown_digits = None               # chiffres de l'heure dessinés à l'image précédente
+        self._anims = {}                        # case -> (ancien chiffre, instant de départ)
+        self._animating = False
         self._snooze_until = None   # instant (time.time()) de fin du snooze en cours, None sinon
         self._temperature = None    # None : zone vide ; nombre : température en °C ; "--" : mesure absente
         self._volume_level = 0      # pixels allumés de l'indicateur de volume
@@ -201,6 +209,17 @@ class RGBMatrixDisplay:
         self._alarm_count = alarm_count if alarm_count is not None else (1 if next_alarm else 0)
         self._alarm_index = alarm_index
 
+    def set_time_animation(self, style, duration=None):
+        """Style de bascule des chiffres de l'heure (clé de glyphs.ANIM_PIVOTS) ou None ; durée en secondes."""
+        self._time_style = style
+        if duration:
+            self._anim_s = duration
+        self._anims.clear()
+
+    def set_time_override(self, hhmm):
+        """Impose l'heure affichée ("HHMM"), pour tester les animations sans attendre ; None rend l'heure réelle."""
+        self._time_override = hhmm
+
     def set_snooze(self, until):
         """Snooze en cours jusqu'à `until` (time.time()) : la zone d'alarme clignote et affiche l'heure de
         reprise. None : plus de snooze (alarme arrêtée ou de nouveau en train de sonner)."""
@@ -245,7 +264,10 @@ class RGBMatrixDisplay:
                     scrolling = self._draw_screen()
             except Exception as e:
                 print(f"[display] Erreur rendu : {e}")
-            time.sleep(SCROLL_FRAME_S if scrolling else IDLE_FRAME_S)
+            delay = ANIM_FRAME_S if self._animating else (SCROLL_FRAME_S if scrolling else IDLE_FRAME_S)
+            if time.time() % 60 > 59.0:       # autour du changement de minute : on ne rate pas l'instant du changement
+                delay = min(delay, 0.1)
+            time.sleep(delay)
 
     def _text_width(self, text):
         """Largeur d'encre en pixels (l'avance du dernier caractère contient 1px d'espacement)."""
@@ -365,6 +387,32 @@ class RGBMatrixDisplay:
             tens, units = ("" if shown < 10 else str(shown // 10)), str(shown % 10)
         glyphs.draw_temperature(put2, x, y, tens, units, color)
 
+    def _time_transitions(self, digits):
+        """Bascules en cours des chiffres de l'heure : {case: (ancien chiffre, avancement, ligne pivot)}.
+        Une bascule démarre quand un chiffre diffère de celui dessiné à l'image précédente ; si plusieurs changent
+        ensemble, elles se décalent légèrement, de droite à gauche."""
+        pivot = glyphs.ANIM_PIVOTS.get(self._time_style)
+        if pivot is None:
+            self._anims.clear()
+            self._animating = False
+            self._shown_digits = digits
+            return {}
+        now = time.monotonic()
+        if self._shown_digits and digits != self._shown_digits:
+            changed = [i for i in range(4) if digits[i] != self._shown_digits[i]]
+            for rank, cell in enumerate(reversed(changed)):
+                self._anims[cell] = (self._shown_digits[cell], now + rank * TIME_ANIM_STAGGER_S)
+        self._shown_digits = digits
+        transitions = {}
+        for cell, (old, start) in list(self._anims.items()):
+            phase = (now - start) / self._anim_s
+            if phase >= 1:
+                del self._anims[cell]
+            else:
+                transitions[cell] = (old, max(0.0, phase), pivot)
+        self._animating = bool(transitions)
+        return transitions
+
     def _draw_screen(self):
         now = time.localtime()
         hh, mm = time.strftime("%H", now), time.strftime("%M", now)
@@ -384,7 +432,9 @@ class RGBMatrixDisplay:
 
         put2 = lambda x, y, c: put(x, y, secondary(c))    # contenu secondaire
 
-        glyphs.draw_time(put, TIME_POS[0], TIME_POS[1], hh, mm, WHITE)
+        transitions = self._time_transitions(self._time_override or hh + mm)
+        digits = self._time_override or hh + mm
+        glyphs.draw_time(put, TIME_POS[0], TIME_POS[1], digits[:2], digits[2:], WHITE, transitions)
         self._draw_week(put, put2, now.tm_wday)
         glyphs.draw_small(put2, DATE_POS[0], DATE_POS[1], day, month, WHITE, sep="base", sep_color=GRAY_50)
         blinking = self._draw_next_alarm(put, put2)

@@ -44,12 +44,47 @@ def blit(put, x, y, rows, color):
                 put(x + dx, y + dy, color)
 
 
-def draw_time(put, x0, y0, hh, mm, color):
+# Animation au changement de chiffre : bascule vers l'arrière autour d'une ligne horizontale (pivot), puis apparition du
+# nouveau chiffre depuis cette même ligne. Les chiffres font 9 lignes (0 à 8).
+ANIM_PIVOTS = {
+    "flip-mid": 4,       # axe au milieu du chiffre, comme une palette de tableau d'affichage
+    "flip-bottom": 8,    # le chiffre se couche vers l'arrière sur sa base, le nouveau se relève depuis la base
+    "flip-top": 0,       # le chiffre se replie contre son bord haut, le nouveau se déplie vers le bas
+}
+
+
+def blit_flipped(put, x, y, rows, color, scale, pivot):
+    """Chiffre écrasé verticalement autour de la ligne `pivot` : scale 1 = taille normale, 0 = invisible. Plus il se
+    couche, plus il s'assombrit (il s'éloigne de la lumière)."""
+    if scale <= 0:
+        return
+    shade = 0.45 + 0.55 * scale
+    color = tuple(int(v * shade) for v in color)
+    height = len(rows)
+    for out in range(height):
+        src = round(pivot + (out - pivot) / scale)
+        if 0 <= src < height:
+            for dx, c in enumerate(rows[src]):
+                if c == "#":
+                    put(x + dx, y + out, color)
+
+
+def draw_time(put, x0, y0, hh, mm, color, transitions=None):
     """Heure dans des cases fixes : rien ne bouge d'une minute à l'autre.
-    Les glyphes étroits (1, 7) s'alignent sur le bord droit de leur case."""
-    for digit, cell in zip(hh + mm, TIME_CELLS):
-        rows = BIG[digit]
-        blit(put, x0 + cell + TIME_CELL_WIDTH - len(rows[0]), y0, rows, color)
+    Les glyphes étroits (1, 7) s'alignent sur le bord droit de leur case.
+
+    transitions : {case (0 à 3): (ancien chiffre, avancement de 0 à 1, ligne pivot)} pour les chiffres en train de
+    basculer : la première moitié couche l'ancien chiffre, la seconde relève le nouveau."""
+    transitions = transitions or {}
+    for cell_index, (digit, cell) in enumerate(zip(hh + mm, TIME_CELLS)):
+        if cell_index in transitions:
+            old, phase, pivot = transitions[cell_index]
+            shown, scale = (old, 1 - 2 * phase) if phase < 0.5 else (digit, 2 * phase - 1)
+            rows = BIG[shown]
+            blit_flipped(put, x0 + cell + TIME_CELL_WIDTH - len(rows[0]), y0, rows, color, scale, pivot)
+        else:
+            rows = BIG[digit]
+            blit(put, x0 + cell + TIME_CELL_WIDTH - len(rows[0]), y0, rows, color)
     put(x0 + TIME_COLON_X, y0 + 4, color)
     put(x0 + TIME_COLON_X, y0 + 7, color)
 

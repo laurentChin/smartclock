@@ -440,6 +440,27 @@ sans réseau reste possible pour la version finale.
 > bindings peut s'arrêter silencieusement par manque de mémoire. Ajouter un
 > fichier de swap avant de relancer `pip install`.
 
+## Animation de l'heure
+
+Quand un chiffre de l'heure change, il bascule vers l'arrière (variante `flip-mid`) : l'ancien s'écrase
+verticalement vers la ligne du milieu du chiffre en s'assombrissant, puis le nouveau se relève depuis cette
+même ligne. La bascule dure 0,6 s ; si plusieurs chiffres changent ensemble (12:59 → 13:00), elles se décalent de
+0,06 s, de droite à gauche. Seuls les chiffres qui changent bougent : les autres et les deux points restent fixes,
+et la date, l'alarme et le reste de l'écran ne sont pas animés.
+
+Réglages dans `config.py` : `TIME_ANIMATION` (`"flip-mid"` retenu ; `"flip-bottom"` couche le chiffre sur sa base,
+`"flip-top"` le replie contre son bord haut, `None` désactive), `TIME_ANIM_S` et `TIME_ANIM_STAGGER_S`.
+
+Mesuré sur le Pi : l'animation démarre environ 40 ms après le changement de minute (la boucle d'affichage
+surveille la minute à 0,1 s près autour de l'instant du changement), le rendu d'une image prend environ 3 ms
+et l'animation tourne à 25 images par seconde. Pour comparer les variantes sans attendre une minute :
+
+```bash
+sudo systemctl stop wakeupclock
+cd ~/smartclock && sudo ~/venv/bin/python tools/animation_demo.py --start-at HH:MM:SS [--duration 0.6]
+sudo systemctl start wakeupclock
+```
+
 ## Diagnostic écran
 
 ```bash

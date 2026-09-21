@@ -28,6 +28,13 @@ FLASK_HOST       = "127.0.0.1"   # Flask n'écoute qu'en local : l'accès se fai
 FLASK_PORT       = 5000
 FLASK_DEBUG      = False
 
+# === ANIMATION DE L'HEURE ===
+# Bascule des chiffres de l'heure quand ils changent : None (désactivée), "flip-mid", "flip-bottom" ou "flip-top"
+# (ligne pivot de la bascule : milieu, base ou bord haut du chiffre). Retenu : "flip-mid".
+TIME_ANIMATION      = "flip-mid"
+TIME_ANIM_S         = 0.6     # durée de la bascule d'un chiffre (l'ancien se couche, le nouveau se relève)
+TIME_ANIM_STAGGER_S = 0.06    # décalage entre deux chiffres qui changent ensemble (de droite à gauche)
+
 # === LOGO DES STATIONS ===
 # Côté (en pixels) de la grille de couleurs affichée à gauche du nom de la station.
 LOGO_SIZE = 7
