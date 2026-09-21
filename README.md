@@ -10,8 +10,8 @@ Radio-réveil connecté basé sur Raspberry Pi, avec afficheur RGB LED matrix
 | SBC | Raspberry Pi 3B+ (validé) | — |
 | Écran | RGB LED Matrix HUB75 64×32, pas 2,5mm (Waveshare) | Nappe HUB75 → Bonnet |
 | Adaptateur écran | Adafruit RGB Matrix Bonnet (réf. 3211) | Header 40 broches du Pi |
-| Alimentation écran | Mean Well LRS-50-5 ou LRS-75-5 (5V) | Secteur → bornier de la Bonnet |
-| Alimentation du Pi | Bloc 5,1 V / 3 A, câble court et épais | micro-USB ; alimente aussi l'ESP32, l'ampli et le haut-parleur |
+| Alimentation écran | 5 V issu du convertisseur du boîtier (prototype : alimentation dédiée) ; voir « Alimentation du boîtier » | Fusible 3 A → bornier de la Bonnet |
+| Alimentation du Pi | Bloc 5,1 V / 3 A, câble court et épais (prototype ; alimentation finale : voir « Alimentation du boîtier ») | micro-USB ; alimente aussi l'ESP32, l'ampli et le haut-parleur |
 | Audio | ESP32-WROOM-32 (Elegoo DevKit V1) + ampli I2S MAX98357A + haut-parleur | USB série (Pi ↔ ESP32), I2S (ESP32 ↔ ampli) |
 | Boutons | 3 poussoirs (principal, volume +, volume −) | GPIO 32 / 33 / 27 de l'ESP32, vers GND |
 
@@ -45,37 +45,76 @@ soit 0,8 A à fond).
 **Budget** : environ 1,5 A en fonctionnement normal ; environ 3,7 A en cumulant tous les pires cas avec la
 luminosité configurée ; environ 4,6 A si la luminosité montait à 100 %.
 
-**Solution retenue pour le boîtier** : un adaptateur externe certifié **5 V / 5 A** (6 A si la luminosité
-dépasse 50 %), sortie 5,0 à 5,2 V pour compenser la chute dans les fils, sur une prise DC 5,5 × 2,1 mm. Aucun
-230 V à l'intérieur du boîtier. À l'intérieur, une distribution en étoile :
-- fusible de 5 A (lame ATO, 32 V continu) et condensateur de 2200 µF au départ de la distribution ;
-- trois branches courtes en fil épais (18 AWG environ) : le panneau (bornes de la Bonnet), le Pi (câble
-  micro-USB coupé, pour garder son fusible et sa détection de sous-tension) et l'ESP32 avec l'ampli ;
-- le câble USB entre le Pi et l'ESP32 ne transporte que les données (fil rouge coupé) pour éviter deux
-  sources sur la même carte ;
-- ne pas alimenter le Pi par la Bonnet : sa diode limite à 1 A
-  ([forum Adafruit](https://forums.adafruit.com/viewtopic.php?t=180682)).
+**Contrainte de l'USB-C** : à 5 V, l'USB-C ne fournit que 3 A au maximum (15 W), et le 5 V / 5 A n'est pas un
+profil standard ; les tensions fixes de l'USB Power Delivery sont 5, 9, 15 et 20 V, le 12 V n'en fait pas partie
+([mbedded.ninja](https://blog.mbedded.ninja/electronics/communication-protocols/usb-protocol/usb-charging-and-power-delivery/)).
+Avec un pire cas d'environ 3,7 A à 5 V, un chargeur USB-C 5 V direct n'aurait aucune marge : on demande donc 9 V au
+chargeur et on redescend à 5 V dans le boîtier.
 
-**Nomenclature** (références dont les caractéristiques ont été vérifiées sur les fiches des revendeurs ; les
-fiches techniques elles-mêmes sont à relire avant commande) :
+**Solution retenue pour le boîtier** : un seul bloc pour tout, à masse commune, alimenté par un chargeur USB-C PD du
+commerce (27 W ou plus, profil 9 V / 3 A), donc remplaçable partout et sans 230 V dans le boîtier :
+
+```
+Chargeur USB-C PD (27 W ou plus, profil 9 V / 3 A) ── câble USB-C
+        ▼
+Adafruit PD Dummy Breakout (HUSB238) réglé sur 9 V     port USB-C dans une découpe du boîtier
+        │ 9 V ── fusible 3 A (porte-fusible ATO en ligne)
+        ▼
+Pololu D24V50F5 : 9 V → 5 V / 5 A                      masse d'entrée = masse de sortie
+        │ 5 V                                            │ GND
+        ▼                                                ▼
+Bloc 4 fusibles ATO (Blue Sea 5045)                   WAGO 221-415 (masse commune)
+   ├─ 3 A ─► panneau (Bonnet, 18 AWG)                  ├─ panneau
+   ├─ 3 A ─► Pi (micro-USB coupé)                      ├─ Pi
+   ├─ 2 A ─► ESP32 (VIN) + ampli (+ 100 µF / 100 nF     ├─ ESP32 + ampli
+   │         près de l'ampli)                           ├─ condensateur 2200 µF
+   └─ libre (sortie de réserve)                         └─ arrivée du convertisseur
+```
+
+- **Budget en 9 V** : le pire cas de 3,7 A à 5 V fait 18,5 W, soit environ 20,6 W en entrée avec 90 % de
+  rendement, donc 2,3 A à 9 V (dans les 3 A du chargeur) ; en usage normal, environ 0,9 A à 9 V.
+- **Convertisseur** : le [Pololu D24V50F5](https://www.pololu.com/product/2851) sort 5 V à 5 A pour une entrée de 6 à
+  38 V (rendement de 85 à 95 %, protection contre l'inversion de polarité et les courts-circuits, arrêt thermique,
+  démarrage progressif). Même si la carte PD était mal réglée et demandait 20 V, il ne serait pas endommagé et le
+  bus 5 V resterait protégé.
+- **Carte PD** : l'[Adafruit 5807](https://www.adafruit.com/product/5807) (puce HUSB238, tension fixée par soudure :
+  couper le pont 5 V et fermer celui de 9 V) ou la [5991](https://www.adafruit.com/product/5991) (tensions à
+  interrupteurs) ; [guide Adafruit](https://learn.adafruit.com/adafruit-husb238-usb-type-c-power-delivery-breakout/overview).
+- **Le Pi** est alimenté par un câble micro-USB coupé (il garde son fusible et sa détection de sous-tension), jamais
+  par la Bonnet : sa diode limite à 1 A ([forum Adafruit](https://forums.adafruit.com/viewtopic.php?t=180682)).
+- **Le câble USB Pi ↔ ESP32** ne transporte que les données (fil rouge coupé) : l'ESP32 est alimenté par sa
+  branche, pas par le Pi.
+- **Un fusible par branche** protège les fils fins (ESP32, câble du Pi) ; le condensateur de 100 µF et celui de
+  100 nF, près de l'ampli, limitent le bruit de découpage du convertisseur.
+- **Si le chargeur n'offre pas le profil 9 V**, la carte ne donne pas 9 V et le convertisseur (6 V minimum en
+  entrée) ne démarre pas : c'est sans danger, et ça se voit au multimètre avant de brancher le convertisseur.
+
+**Nomenclature** (les caractéristiques viennent des fiches des revendeurs, à relire avant commande) :
 
 | Élément | Qté | Référence | Caractéristiques |
 |---|---|---|---|
-| Adaptateur secteur | 1 | Mean Well GST60A05-P1J | 5 V / 6 A (30 W), fiche DC 2,1 × 5,5 mm, centre positif, embase secteur C14 ([Farnell](https://cpc.farnell.com/mean-well/gst60a05-p1j/adaptor-ac-dc-5v-6a/dp/PW04637)) |
-| Cordon secteur | 1 | cordon C13, fiche européenne, 3 × 0,75 mm², 1,5 m | générique |
-| Embase DC | 1 | Switchcraft RAPC722X, ou toute embase à visser à **pivot de 2,1 mm et 5 A minimum** | RAPC722X : 2,1 mm, 5,5 mm extérieur, 5 A, à souder sur circuit imprimé ([Newark](https://www.newark.com/switchcraft-conxall/rapc722x/connector-dc-power-socket-5a/dp/65K7786)). Ne pas prendre les Switchcraft 712A ni RAPC712 : leur pivot est de 2,5 mm ([Newark](https://www.newark.com/switchcraft-conxall/712a/connector-dc-power-jack-5a/dp/37F2993)) |
-| Fusible | 1 | Littelfuse 0287005.PXCN | lame ATO 5 A, 32 V ([Farnell](https://cpc.farnell.com/littelfuse/0287005-pxcn/fuse-atof-blade-5a/dp/FF02736)) |
-| Porte-fusible | 1 | porte-fusible ATO en ligne, fil 16 AWG | générique |
-| Condensateur | 1 | Panasonic EEU-FR1C222 | 2200 µF, 16 V, faible ESR, Ø 12,5 × 20 mm, 105 °C ([Farnell](https://uk.farnell.com/panasonic/eeufr1c222/cap-2200-f-16v-20/dp/1800641)) ; repère « − » côté masse |
-| Bornes de distribution | 2 | WAGO 221-415 | 5 conducteurs, 24 à 12 AWG, 32 A ([Farnell](https://cpc.farnell.com/wago/221-415/compact-lever-connector-5-way/dp/CN20137)) ; un pour le +5 V, un pour la masse (arrivée, 3 branches, condensateur) |
-| Fil | — | silicone 18 AWG rouge et noir (arrivée, panneau) ; 22 AWG (ESP32) | générique |
+| Chargeur secteur | 1 | tout chargeur USB-C PD de 27 W ou plus | l'étiquette doit porter « 9 V ⎓ 3 A » ; un câble USB-C standard (3 A) suffit |
+| Carte USB-C PD | 1 | Adafruit 5807 (ou 5991) | HUSB238, tension au choix de 5 à 20 V |
+| Convertisseur | 1 | Pololu D24V50F5 | 5 V / 5 A, entrée 6 à 38 V |
+| Fusible d'entrée (9 V) | 1 + porte-fusible ATO en ligne | Littelfuse ATO 3 A | même série que le 0287005 vérifié (5 A) ; la référence 3 A, 0287003.PXCN, est déduite de la numérotation et à confirmer au catalogue |
+| Bloc de fusibles | 1 | [Blue Sea 5045](https://www.bluesea.com/products/5045/ST_Blade_Compact_Fuse_Blocks_-_4_Circuits) | 4 circuits ATO/ATC à alimentation commune, 32 V continu, 30 A par circuit |
+| Fusibles de branche | 3 | ATO 3 A (panneau, Pi), ATO 2 A (ESP32 et ampli) | mêmes séries (Littelfuse 0287005.PXCN vérifié, [Farnell](https://cpc.farnell.com/littelfuse/0287005-pxcn/fuse-atof-blade-5a/dp/FF02736)) ; références 3 A et 2 A à confirmer |
+| Masse commune | 1 | WAGO 221-415 | 5 conducteurs, 24 à 12 AWG, 32 A ([Farnell](https://cpc.farnell.com/wago/221-415/compact-lever-connector-5-way/dp/CN20137)) |
+| Condensateur du bus | 1 | Panasonic EEU-FR1C222 | 2200 µF, 16 V, faible ESR, Ø 12,5 × 20 mm, 105 °C ([Farnell](https://uk.farnell.com/panasonic/eeufr1c222/cap-2200-f-16v-20/dp/1800641)) ; repère « − » côté masse |
+| Condensateurs de l'ampli | 1 + 1 | 100 µF (16 V, faible ESR) et 100 nF céramique | générique |
+| Fil | — | silicone 18 AWG rouge et noir (panneau) ; 22 AWG (ESP32) | générique |
 | Embouts de câblage | — | 0,75 mm² | bornes de la Bonnet et WAGO |
-| Câble du Pi | 1 | micro-USB coupé, moins de 30 cm, fils d'alimentation de 20 AWG environ | garde le fusible et la détection de sous-tension du Pi |
-| Câble de l'ESP32 | 1 | micro-USB données seules (ou fil rouge coupé) | l'alimentation vient de la distribution |
+| Câble du Pi | 1 | micro-USB coupé, moins de 30 cm, fils d'alimentation de 20 AWG environ | |
+| Câble de l'ESP32 | 1 | micro-USB données seules (ou fil rouge coupé) | |
 | Dissipateur | 1 | dissipateur pour Pi 3B+ (en option : ventilateur 5 V de 40 mm) | générique |
 
-Avant de brancher : contrôler au multimètre l'absence de court-circuit entre +5 V et masse, monter le fusible en
-dernier, puis relever la tension au niveau du Pi en charge (au moins 4,9 V).
+**Mise en service, dans cet ordre** :
+1. Régler la carte PD sur 9 V, la brancher au chargeur et vérifier 9 V au multimètre sur sa sortie, avant de
+   raccorder le convertisseur.
+2. Raccorder le convertisseur seul, sans charge : vérifier 5 V sur sa sortie.
+3. Contrôler l'absence de court-circuit entre +5 V et masse sur toutes les branches, fusibles retirés.
+4. Poser les fusibles de branche, puis brancher les branches une à une (ESP32 et ampli, Pi, panneau).
+5. Relever la tension au niveau du Pi en charge (au moins 4,9 V) et vérifier `vcgencmd get_throttled`.
 
 **Thermique** : le processeur atteint environ 56 °C une minute après le démarrage, hors boîtier (limite
 douce à 60 °C). Prévoir des aérations et un petit dissipateur.
