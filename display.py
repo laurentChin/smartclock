@@ -279,16 +279,16 @@ class RGBMatrixDisplay:
     # -- éléments de la maquette --
 
     def _draw_week(self, put, put2, today):
-        """7 pixels, lundi (0) à dimanche (6) ; le jour courant est actif, les autres secondaires."""
+        """7 pixels contigus, lundi (0) à dimanche (6) ; le jour courant est actif, les autres secondaires."""
         for i in range(7):
             weekend = i >= 5
             if i == today:
-                put(WEEK_POS[0] + 2 * i, WEEK_POS[1], WEEKEND_ACTIVE if weekend else DAY_ACTIVE)
+                put(WEEK_POS[0] + i, WEEK_POS[1], WEEKEND_ACTIVE if weekend else DAY_ACTIVE)
             else:
-                put2(WEEK_POS[0] + 2 * i, WEEK_POS[1], WEEKEND_DIM if weekend else DAY_DIM)
+                put2(WEEK_POS[0] + i, WEEK_POS[1], WEEKEND_DIM if weekend else DAY_DIM)
 
     def _draw_next_alarm(self, put, put2):
-        """Un pixel par alarme définie (la plus proche est active), puis son heure (secondaire).
+        """Un pixel par alarme définie, contigus (la plus proche est active), puis son heure (secondaire).
         Pendant un snooze : l'heure de reprise à la place, et toute la zone clignote (0,5 s allumée / 0,5 s
         éteinte) pour montrer que l'alarme est seulement reportée. Retourne True pendant un snooze."""
         snoozing = self._snooze_until is not None and time.time() < self._snooze_until
@@ -305,7 +305,7 @@ class RGBMatrixDisplay:
             return snoozing
         for i in range(min(count, MAX_ALARM_DOTS)):
             draw = put if i == index else put2
-            draw(ALARM_COUNT_POS[0] + 2 * i, ALARM_COUNT_POS[1],
+            draw(ALARM_COUNT_POS[0] + i, ALARM_COUNT_POS[1],
                  ALARM_ACTIVE if i == index else ALARM_DIM)
         glyphs.draw_small(put2, ALARM_TIME_POS[0], ALARM_TIME_POS[1], digits[:2], digits[2:],
                           ALARM_ACTIVE, sep="dots")
@@ -386,7 +386,7 @@ class RGBMatrixDisplay:
 
         glyphs.draw_time(put, TIME_POS[0], TIME_POS[1], hh, mm, WHITE)
         self._draw_week(put, put2, now.tm_wday)
-        glyphs.draw_small(put2, DATE_POS[0], DATE_POS[1], day, month, WHITE, sep="bar", sep_color=GRAY_50)
+        glyphs.draw_small(put2, DATE_POS[0], DATE_POS[1], day, month, WHITE, sep="base", sep_color=GRAY_50)
         blinking = self._draw_next_alarm(put, put2)
         self._draw_temperature(put2)
         scrolling = (self._draw_radio(canvas, put, station, program) if radio_visible else False) or blinking

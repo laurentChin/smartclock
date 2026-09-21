@@ -54,15 +54,15 @@ def draw_time(put, x0, y0, hh, mm, color):
     put(x0 + TIME_COLON_X, y0 + 7, color)
 
 
-def draw_small(put, x, y, left, right, color, sep="bar", sep_color=None):
-    """Deux chiffres 3x5, séparateur de 1px ("bar" : barre 1x5, "dots" : deux points),
+def draw_small(put, x, y, left, right, color, sep="base", sep_color=None):
+    """Deux chiffres 3x5, séparateur de 1px ("base" : un pixel à la base du texte, "dots" : deux points),
     deux chiffres 3x5."""
     for d in left:
         blit(put, x, y, SMALL[d], color)
         x += len(SMALL[d][0]) + 1
     sep_color = sep_color or color
-    if sep == "bar":
-        blit(put, x, y, ["#"] * 5, sep_color)
+    if sep == "base":
+        put(x, y + 4, sep_color)
     else:
         put(x, y + 1, sep_color)
         put(x, y + 3, sep_color)
