@@ -48,13 +48,34 @@ luminosité configurée ; environ 4,6 A si la luminosité montait à 100 %.
 **Solution retenue pour le boîtier** : un adaptateur externe certifié **5 V / 5 A** (6 A si la luminosité
 dépasse 50 %), sortie 5,0 à 5,2 V pour compenser la chute dans les fils, sur une prise DC 5,5 × 2,1 mm. Aucun
 230 V à l'intérieur du boîtier. À l'intérieur, une distribution en étoile :
-- fusible d'environ 6 A et condensateur de 2200 µF au départ de la distribution ;
+- fusible de 5 A (lame ATO, 32 V continu) et condensateur de 2200 µF au départ de la distribution ;
 - trois branches courtes en fil épais (18 AWG environ) : le panneau (bornes de la Bonnet), le Pi (câble
   micro-USB coupé, pour garder son fusible et sa détection de sous-tension) et l'ESP32 avec l'ampli ;
 - le câble USB entre le Pi et l'ESP32 ne transporte que les données (fil rouge coupé) pour éviter deux
   sources sur la même carte ;
 - ne pas alimenter le Pi par la Bonnet : sa diode limite à 1 A
   ([forum Adafruit](https://forums.adafruit.com/viewtopic.php?t=180682)).
+
+**Nomenclature** (références dont les caractéristiques ont été vérifiées sur les fiches des revendeurs ; les
+fiches techniques elles-mêmes sont à relire avant commande) :
+
+| Élément | Qté | Référence | Caractéristiques |
+|---|---|---|---|
+| Adaptateur secteur | 1 | Mean Well GST60A05-P1J | 5 V / 6 A (30 W), fiche DC 2,1 × 5,5 mm, centre positif, embase secteur C14 ([Farnell](https://cpc.farnell.com/mean-well/gst60a05-p1j/adaptor-ac-dc-5v-6a/dp/PW04637)) |
+| Cordon secteur | 1 | cordon C13, fiche européenne, 3 × 0,75 mm², 1,5 m | générique |
+| Embase DC | 1 | Switchcraft RAPC722X, ou toute embase à visser à **pivot de 2,1 mm et 5 A minimum** | RAPC722X : 2,1 mm, 5,5 mm extérieur, 5 A, à souder sur circuit imprimé ([Newark](https://www.newark.com/switchcraft-conxall/rapc722x/connector-dc-power-socket-5a/dp/65K7786)). Ne pas prendre les Switchcraft 712A ni RAPC712 : leur pivot est de 2,5 mm ([Newark](https://www.newark.com/switchcraft-conxall/712a/connector-dc-power-jack-5a/dp/37F2993)) |
+| Fusible | 1 | Littelfuse 0287005.PXCN | lame ATO 5 A, 32 V ([Farnell](https://cpc.farnell.com/littelfuse/0287005-pxcn/fuse-atof-blade-5a/dp/FF02736)) |
+| Porte-fusible | 1 | porte-fusible ATO en ligne, fil 16 AWG | générique |
+| Condensateur | 1 | Panasonic EEU-FR1C222 | 2200 µF, 16 V, faible ESR, Ø 12,5 × 20 mm, 105 °C ([Farnell](https://uk.farnell.com/panasonic/eeufr1c222/cap-2200-f-16v-20/dp/1800641)) ; repère « − » côté masse |
+| Bornes de distribution | 2 | WAGO 221-415 | 5 conducteurs, 24 à 12 AWG, 32 A ([Farnell](https://cpc.farnell.com/wago/221-415/compact-lever-connector-5-way/dp/CN20137)) ; un pour le +5 V, un pour la masse (arrivée, 3 branches, condensateur) |
+| Fil | — | silicone 18 AWG rouge et noir (arrivée, panneau) ; 22 AWG (ESP32) | générique |
+| Embouts de câblage | — | 0,75 mm² | bornes de la Bonnet et WAGO |
+| Câble du Pi | 1 | micro-USB coupé, moins de 30 cm, fils d'alimentation de 20 AWG environ | garde le fusible et la détection de sous-tension du Pi |
+| Câble de l'ESP32 | 1 | micro-USB données seules (ou fil rouge coupé) | l'alimentation vient de la distribution |
+| Dissipateur | 1 | dissipateur pour Pi 3B+ (en option : ventilateur 5 V de 40 mm) | générique |
+
+Avant de brancher : contrôler au multimètre l'absence de court-circuit entre +5 V et masse, monter le fusible en
+dernier, puis relever la tension au niveau du Pi en charge (au moins 4,9 V).
 
 **Thermique** : le processeur atteint environ 56 °C une minute après le démarrage, hors boîtier (limite
 douce à 60 °C). Prévoir des aérations et un petit dissipateur.
@@ -327,7 +348,7 @@ wakeupclock/
 ├── wakeupclock.db    ← base SQLite (générée au premier lancement)
 ├── requirements.txt  ← dépendances Python
 ├── wakeupclock.service ← unit systemd
-├── deploy/Caddyfile  ← HTTPS local (Caddy)
+├── deploy/           ← Caddyfile (HTTPS) et réglages systemd (attente de l'heure)
 ├── templates/        ← pages : base, alarmes (index), stations, système
 └── static/
     ├── css/style.css
@@ -392,6 +413,26 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now wakeupclock
 journalctl -u wakeupclock -f      # messages en direct
 ```
+
+**Heure au démarrage** : le Pi n'a pas d'horloge interne, il démarre sur l'heure de sa dernière sauvegarde puis
+saute à l'heure réelle une fois le réseau synchronisé. Sans précaution, une alarme peut alors être manquée ou
+décalée après une coupure de courant, et Caddy peut servir un certificat daté d'une heure fausse (le HTTPS échoue
+jusqu'à son renouvellement). Le réveil et Caddy attendent donc `time-sync.target` (déjà dans
+`wakeupclock.service`), ce qui demande d'activer le service d'attente et de lui donner un délai maximum :
+
+```bash
+sudo mkdir -p /etc/systemd/system/systemd-time-wait-sync.service.d /etc/systemd/system/caddy.service.d
+sudo cp deploy/time-wait-sync-timeout.conf /etc/systemd/system/systemd-time-wait-sync.service.d/timeout.conf
+sudo cp deploy/caddy-wait-time.conf /etc/systemd/system/caddy.service.d/wait-time.conf
+sudo systemctl enable systemd-time-wait-sync.service
+sudo systemctl daemon-reload
+```
+
+Le réveil démarre alors environ 35 s après le Pi (temps de la synchronisation). Sans réseau, le délai maximum est de
+120 s : il démarre ensuite quand même, sur l'heure non synchronisée. Vérification après un redémarrage :
+`systemd-analyze critical-chain wakeupclock.service` doit montrer `systemd-time-wait-sync.service` avant lui, et
+`journalctl -u wakeupclock -b` doit porter la date du jour. Un module horloge à pile (RTC DS3231, I2C) gardant l'heure
+sans réseau reste possible pour la version finale.
 
 > Sur un Pi avec peu de RAM (Zero 2W : ~415 Mo utilisables), la compilation des
 > bindings peut s'arrêter silencieusement par manque de mémoire. Ajouter un

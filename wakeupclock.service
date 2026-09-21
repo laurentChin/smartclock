@@ -1,7 +1,9 @@
 [Unit]
 Description=WakeUpClock — Radio réveil connecté
-After=network-online.target
-Wants=network-online.target
+# time-sync.target : attend que l'heure soit synchronisée (le Pi n'a pas d'horloge interne, il démarre sur l'heure
+# de sa dernière sauvegarde) pour que les alarmes ne partent pas sur une heure fausse.
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 Type=simple
