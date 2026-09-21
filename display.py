@@ -46,8 +46,11 @@ ALARM_COUNT_POS = (45, 11)
 ALARM_TIME_POS  = (45, 13)
 TEMP_POS        = (45, 24)              # zone 9x5 : deux chiffres 3x5 et un pixel de degré
 LOGO_POS        = (4, 19)
-VOLUME_POS      = (2, 19)               # colonne de 10 pixels, le bas de la colonne = volume minimal
-VOLUME_PIXELS   = 10
+VOLUME_POS      = (1, 19)               # 2 colonnes (x=1 et x=2) sur 10 lignes (19 à 28)
+VOLUME_ROWS     = 10
+VOLUME_COLUMNS  = 2
+VOLUME_PIXELS   = VOLUME_ROWS * VOLUME_COLUMNS
+VOLUME_STEP     = 5                     # un pixel par pas de 5 % (comme les boutons de volume)
 VOLUME_HIDE_S   = 5.0                   # disparaît 5 s après la dernière commande de volume
 RADIO_TEXT_X    = LOGO_POS[0] + LOGO_SIZE + 1     # texte : à droite du logo, avec 1 pixel d'écart
 RADIO_TEXT_WIDTH = 24                   # fenêtre du texte : 6 caractères, assez pour "France", "Europe", "Culture"
@@ -185,8 +188,10 @@ class RGBMatrixDisplay:
         return self._mode
 
     def show_volume(self, percent):
-        """Affiche l'indicateur de volume ; un pixel de plus tous les 10 % (donc tous les deux pas de 5 %)."""
-        self._volume_level = max(0, min(VOLUME_PIXELS, int(percent) // 10))
+        """Affiche l'indicateur de volume : un pixel par pas de 5 %, remplis d'abord sur l'axe horizontal (de gauche à
+        droite) puis sur l'axe vertical (de bas en haut) : 5 % = en bas à gauche, 10 % = en bas à droite, 15 % = à gauche
+        de la ligne du dessus, etc."""
+        self._volume_level = max(0, min(VOLUME_PIXELS, int(percent) // VOLUME_STEP))
         self._volume_until = time.monotonic() + VOLUME_HIDE_S
 
     def set_alarms(self, next_alarm="", alarm_count=None, alarm_index=0):
@@ -329,13 +334,15 @@ class RGBMatrixDisplay:
         return moving
 
     def _draw_volume(self, put, put2):
-        """Colonne de 10 pixels remplie depuis le bas ; les pixels éteints restent visibles (secondaires)."""
+        """Le pixel i (0 à 19) est dans la colonne i % 2, sur la ligne i // 2 en partant du bas ; les pixels éteints
+        restent visibles (secondaires)."""
         for i in range(VOLUME_PIXELS):
-            y = VOLUME_POS[1] + VOLUME_PIXELS - 1 - i
+            x = VOLUME_POS[0] + i % VOLUME_COLUMNS
+            y = VOLUME_POS[1] + VOLUME_ROWS - 1 - i // VOLUME_COLUMNS
             if i < self._volume_level:
-                put(VOLUME_POS[0], y, VOLUME_LIT)
+                put(x, y, VOLUME_LIT)
             else:
-                put2(VOLUME_POS[0], y, VOLUME_OFF)
+                put2(x, y, VOLUME_OFF)
 
     def _draw_temperature(self, put2):
         """Zone 9x5 : la température arrondie sur deux chiffres 3x5 et un pixel de degré en haut à droite.

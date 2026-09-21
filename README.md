@@ -145,10 +145,12 @@ Alarme en snooze : tant qu'une alarme est seulement reportée (et non arrêtée)
 alarme. Le clignotement cesse quand l'alarme reprend, ou quand on l'arrête (appui long ou
 `POST /api/alarm/dismiss`).
 
-Indicateur de volume (`display.py`, maquette Figma) : colonne de 10 pixels à gauche du logo
-(x=2, lignes 19-28), remplie depuis le bas, un pixel par tranche de 10 % (donc mise à jour
-tous les deux pas de 5 %). Elle s'affiche à chaque changement de volume (boutons ou interface
-web), quel que soit le mode d'affichage, et disparaît 5 s après la dernière commande.
+Indicateur de volume (`display.py`, maquette Figma) : deux colonnes de 10 pixels à gauche du logo (x=1 et
+x=2, lignes 19-28), soit 20 pixels à raison d'un pixel par pas de 5 % (comme les boutons de volume). Ils se
+remplissent d'abord sur l'axe horizontal puis sur l'axe vertical : 5 % = en bas à gauche, 10 % = en bas à
+droite, 15 % = à gauche de la ligne du dessus, et ainsi de suite jusqu'à 100 % (20 pixels). L'indicateur
+s'affiche à chaque changement de volume (boutons ou interface web), quel que soit le mode d'affichage, et
+disparaît 5 s après la dernière commande.
 
 Les appuis sont envoyés par le même port série (`BTN main`, `BTN main_long`, `BTN vol_up`,
 `BTN vol_down`).
@@ -465,4 +467,5 @@ diagonales (blanche et magenta) : les 32 lignes doivent toutes s'allumer.
   développement de Flask, suffisant sur un réseau domestique.
 - **Alimentation** : plan défini (voir « Alimentation du boîtier ») ; à réaliser dans le boîtier. La branche du
   Pi reste à mesurer avec un wattmètre USB si l'on veut affiner la marge.
-- **Figma** : la maquette n'a pas encore la zone température ; les logos 7 × 7 y sont à vérifier.
+- **Figma** : la maquette a la zone température et les deux colonnes de volume, mais le clignotement du snooze et
+  une frame de référence des logos 7 × 7 restent à y ajouter, et le remplissage du volume y est à confronter au code.
